@@ -25,7 +25,8 @@ const io = socketIO(server, {
 
 // Middleware
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased limit for bulk operations
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roombooking')

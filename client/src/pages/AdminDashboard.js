@@ -368,8 +368,46 @@ function AdminDashboard({ setIsAuthenticated }) {
           });
         });
 
-        await slotAPI.bulkCreate({ roomIds, slots: slotsData });
-        toast.success(`تم إنشاء ${roomIds.length * slotsData.length} موعد بنجاح! (${dates.length} يوم × ${validTimeSlots.length} موعد × ${roomIds.length} مكان)`);
+        const totalSlots = roomIds.length * slotsData.length;
+        
+        // Warning for large operations
+        if (totalSlots > 5000) {
+          toast.error(`⚠️ العدد كبير جداً! (${totalSlots} موعد). يرجى تقليل الفترة الزمنية أو عدد الأماكن.`);
+          return;
+        }
+        
+        if (totalSlots > 1000) {
+          const confirmLarge = window.confirm(
+            `⚠️ سيتم إنشاء ${totalSlots} موعد!\n` +
+            `(${dates.length} يوم × ${validTimeSlots.length} موعد × ${roomIds.length} مكان)\n\n` +
+            `هذا قد يستغرق بضع دقائق. هل تريد المتابعة؟`
+          );
+          if (!confirmLarge) {
+            return;
+          }
+        }
+
+        // Batch processing for large operations
+        const BATCH_SIZE = 500; // Process 500 slots per room at a time
+        let totalCreated = 0;
+        
+        toast.info(`⏳ جاري إنشاء ${totalSlots} موعد... يرجى الانتظار`);
+        
+        for (const roomId of roomIds) {
+          // Split slots into batches
+          for (let i = 0; i < slotsData.length; i += BATCH_SIZE) {
+            const batch = slotsData.slice(i, i + BATCH_SIZE);
+            await slotAPI.bulkCreate({ roomIds: [roomId], slots: batch });
+            totalCreated += batch.length;
+            
+            // Show progress
+            if (roomIds.length > 1 || slotsData.length > BATCH_SIZE) {
+              toast.info(`⏳ تم إنشاء ${totalCreated} من ${totalSlots} موعد...`, { autoClose: 1000 });
+            }
+          }
+        }
+
+        toast.success(`✅ تم إنشاء ${totalSlots} موعد بنجاح! (${dates.length} يوم × ${validTimeSlots.length} موعد × ${roomIds.length} مكان)`);
       } else if (bulkMode) {
         // Bulk mode: multiple rooms and/or multiple slots
         const roomIds = selectedRooms.length > 0 ? selectedRooms : [slotForm.roomId];
@@ -423,8 +461,46 @@ function AdminDashboard({ setIsAuthenticated }) {
           }));
         }
         
-        await slotAPI.bulkCreate({ roomIds, slots: slotsData });
-        toast.success(`تم إنشاء ${roomIds.length * slotsData.length} موعد بنجاح!`);
+        const totalSlots = roomIds.length * slotsData.length;
+        
+        // Warning for large operations
+        if (totalSlots > 5000) {
+          toast.error(`⚠️ العدد كبير جداً! (${totalSlots} موعد). يرجى تقليل عدد المواعيد أو الأماكن.`);
+          return;
+        }
+        
+        if (totalSlots > 1000) {
+          const confirmLarge = window.confirm(
+            `⚠️ سيتم إنشاء ${totalSlots} موعد!\n` +
+            `هذا قد يستغرق بضع دقائق. هل تريد المتابعة؟`
+          );
+          if (!confirmLarge) {
+            return;
+          }
+        }
+
+        // Batch processing for large operations
+        if (totalSlots > 500) {
+          const BATCH_SIZE = 500;
+          let totalCreated = 0;
+          
+          toast.info(`⏳ جاري إنشاء ${totalSlots} موعد... يرجى الانتظار`);
+          
+          for (const roomId of roomIds) {
+            for (let i = 0; i < slotsData.length; i += BATCH_SIZE) {
+              const batch = slotsData.slice(i, i + BATCH_SIZE);
+              await slotAPI.bulkCreate({ roomIds: [roomId], slots: batch });
+              totalCreated += batch.length;
+              
+              toast.info(`⏳ تم إنشاء ${totalCreated} من ${totalSlots} موعد...`, { autoClose: 1000 });
+            }
+          }
+          
+          toast.success(`✅ تم إنشاء ${totalSlots} موعد بنجاح!`);
+        } else {
+          await slotAPI.bulkCreate({ roomIds, slots: slotsData });
+          toast.success(`تم إنشاء ${totalSlots} موعد بنجاح!`);
+        }
       } else {
         // If weekly and multiple occurrences, create multiple slots
         if (slotForm.type === 'weekly' && slotForm.weeklyOccurrences > 1) {
@@ -1543,6 +1619,57 @@ function AdminDashboard({ setIsAuthenticated }) {
                     <div className="date-range-preview">
                       <strong>📅 عدد الأيام: </strong>
                       {Math.ceil((new Date(dateRangeEnd) - new Date(dateRangeStart)) / (1000 * 60 * 60 * 24)) + 1} يوم
+                      
+                      {/* Total slots calculation */}
+                      {(() => {
+                        const days = Math.ceil((new Date(dateRangeEnd) - new Date(dateRangeStart)) / (1000 * 60 * 60 * 24)) + 1;
+                        const validTimeSlots = timeSlots.filter(slot => slot.startTime && slot.endTime).length;
+                        const roomsCount = selectedRooms.length || 0;
+                        const totalSlots = days * validTimeSlots * roomsCount;
+                        
+                        if (roomsCount > 0 && validTimeSlots > 0) {
+                          return (
+                            <div style={{ marginTop: '8px' }}>
+                              <strong>🔢 إجمالي المواعيد: </strong>
+                              <span style={{ 
+                                color: totalSlots > 5000 ? '#d32f2f' : totalSlots > 1000 ? '#f57c00' : '#2e7d32',
+                                fontWeight: 'bold',
+                                fontSize: '1.1rem'
+                              }}>
+                                {totalSlots.toLocaleString('ar-EG')} موعد
+                              </span>
+                              <small style={{ display: 'block', marginTop: '4px', color: '#666' }}>
+                                ({days} يوم × {validTimeSlots} موعد × {roomsCount} مكان)
+                              </small>
+                              {totalSlots > 5000 && (
+                                <div style={{ 
+                                  marginTop: '8px', 
+                                  padding: '8px', 
+                                  backgroundColor: '#ffebee', 
+                                  borderRadius: '4px',
+                                  color: '#d32f2f',
+                                  fontSize: '0.9rem'
+                                }}>
+                                  ⚠️ العدد كبير جداً! الحد الأقصى 5000 موعد
+                                </div>
+                              )}
+                              {totalSlots > 1000 && totalSlots <= 5000 && (
+                                <div style={{ 
+                                  marginTop: '8px', 
+                                  padding: '8px', 
+                                  backgroundColor: '#fff3e0', 
+                                  borderRadius: '4px',
+                                  color: '#f57c00',
+                                  fontSize: '0.9rem'
+                                }}>
+                                  ⚠️ عدد كبير! قد يستغرق بضع دقائق
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   )}
 
