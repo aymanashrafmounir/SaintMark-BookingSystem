@@ -9,7 +9,7 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
-import { roomAPI, slotAPI, bookingAPI } from '../services/api';
+import { roomAPI, roomGroupAPI, slotAPI, bookingAPI } from '../services/api';
 import socketService from '../services/socket';
 import './UserPortal.css';
 
@@ -40,6 +40,7 @@ function UserPortal() {
   };
 
   const [rooms, setRooms] = useState([]);
+  const [roomGroups, setRoomGroups] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(getDatePlusDays(7)); // Default: +7 days
@@ -67,6 +68,17 @@ function UserPortal() {
     return dates;
   }, []);
 
+  // Get rooms that are NOT in any group
+  const getRoomsNotInGroups = useCallback(() => {
+    const roomsInGroups = new Set();
+    roomGroups.forEach(group => {
+      group.rooms.forEach(room => {
+        roomsInGroups.add(room._id);
+      });
+    });
+    return rooms.filter(room => !roomsInGroups.has(room._id));
+  }, [rooms, roomGroups]);
+
   const loadRooms = useCallback(async () => {
     setLoading(true);
     
@@ -77,10 +89,17 @@ function UserPortal() {
     }, 30000); // 30 seconds timeout
     
     try {
-      const response = await roomAPI.getAll();
+      const [roomsResponse, groupsResponse] = await Promise.all([
+        roomAPI.getAll(),
+        roomGroupAPI.getAll()
+      ]);
       clearTimeout(loadingTimeout);
-      const enabledRooms = response.data.filter(room => room.isEnabled);
+      
+      const enabledRooms = roomsResponse.data.filter(room => room.isEnabled);
+      const enabledGroups = groupsResponse.data.filter(group => group.isEnabled);
+      
       setRooms(enabledRooms);
+      setRoomGroups(enabledGroups);
       // Set default to "all" to show all rooms
       setSelectedRoom('all');
     } catch (error) {
@@ -138,6 +157,37 @@ function UserPortal() {
     }
   }, [rooms, getDateRange]);
 
+  const loadSlotsForGroup = useCallback(async (group, startDate, endDate) => {
+    try {
+      if (!group.rooms || group.rooms.length === 0) {
+        setSlots([]);
+        return;
+      }
+      
+      const dates = getDateRange(startDate, endDate);
+      const allPromises = [];
+      
+      // Load slots for all rooms in the group
+      group.rooms.forEach(room => {
+        dates.forEach(date => {
+          allPromises.push(slotAPI.getByRoom(room._id, date));
+        });
+      });
+      
+      if (allPromises.length === 0) {
+        setSlots([]);
+        return;
+      }
+      
+      const allResponses = await Promise.all(allPromises);
+      const allSlots = allResponses.flatMap(response => response.data);
+      setSlots(allSlots);
+    } catch (error) {
+      console.error('Load group slots error:', error);
+      toast.error('فشل تحميل الأوقات');
+    }
+  }, [getDateRange]);
+
   useEffect(() => {
     loadRooms();
     
@@ -157,6 +207,8 @@ function UserPortal() {
       toast.success('تمت الموافقة على حجز!');
       if (selectedRoom === 'all') {
         loadAllSlotsForDateRange(startDate, endDate);
+      } else if (selectedRoom?.isGroup) {
+        loadSlotsForGroup(selectedRoom, startDate, endDate);
       } else if (selectedRoom) {
         loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
       }
@@ -165,21 +217,25 @@ function UserPortal() {
     socketService.onBookingRejected(() => {
       if (selectedRoom === 'all') {
         loadAllSlotsForDateRange(startDate, endDate);
+      } else if (selectedRoom?.isGroup) {
+        loadSlotsForGroup(selectedRoom, startDate, endDate);
       } else if (selectedRoom) {
         loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
       }
     });
-  }, [loadAllSlotsForDateRange, loadSlotsForDateRange, selectedRoom, startDate, endDate]);
+  }, [loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup, selectedRoom, startDate, endDate]);
 
   useEffect(() => {
     if (startDate && endDate && rooms.length > 0) {
       if (selectedRoom === 'all') {
         loadAllSlotsForDateRange(startDate, endDate);
+      } else if (selectedRoom?.isGroup) {
+        loadSlotsForGroup(selectedRoom, startDate, endDate);
       } else if (selectedRoom) {
         loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
       }
     }
-  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange]);
+  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup]);
 
   const handleBookSlot = (slot) => {
     if (slot.status === 'booked') {
@@ -235,6 +291,8 @@ function UserPortal() {
       // Reload slots based on current selection
       if (selectedRoom === 'all') {
         loadAllSlotsForDateRange(startDate, endDate);
+      } else if (selectedRoom?.isGroup) {
+        loadSlotsForGroup(selectedRoom, startDate, endDate);
       } else {
         loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
       }
@@ -248,6 +306,9 @@ function UserPortal() {
   const handleRefresh = () => {
     if (selectedRoom === 'all') {
       loadAllSlotsForDateRange(startDate, endDate);
+      toast.info('تم تحديث الأوقات');
+    } else if (selectedRoom?.isGroup) {
+      loadSlotsForGroup(selectedRoom, startDate, endDate);
       toast.info('تم تحديث الأوقات');
     } else if (selectedRoom) {
       loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
@@ -300,10 +361,20 @@ function UserPortal() {
                   <Calendar size={18} /> اختر المكان
                 </label>
                 <select
-                  value={selectedRoom === 'all' ? 'all' : selectedRoom?._id || ''}
+                  value={
+                    selectedRoom === 'all' ? 'all' : 
+                    selectedRoom?.isGroup ? `group:${selectedRoom._id}` :
+                    selectedRoom?._id || ''
+                  }
                   onChange={(e) => {
                     if (e.target.value === 'all') {
                       setSelectedRoom('all');
+                    } else if (e.target.value.startsWith('group:')) {
+                      const groupId = e.target.value.replace('group:', '');
+                      const group = roomGroups.find(g => g._id === groupId);
+                      if (group) {
+                        setSelectedRoom({ ...group, isGroup: true });
+                      }
                     } else {
                       const room = rooms.find(r => r._id === e.target.value);
                       setSelectedRoom(room);
@@ -312,11 +383,30 @@ function UserPortal() {
                   className="room-select"
                 >
                   <option value="all">🏢 جميع الأماكن</option>
-                  {rooms.map((room) => (
-                    <option key={room._id} value={room._id}>
-                      {room.name}
-                    </option>
-                  ))}
+                  
+                  {/* Room Groups */}
+                  {roomGroups.length > 0 && (
+                    <>
+                      <option disabled>──── المجموعات ────</option>
+                      {roomGroups.map((group) => (
+                        <option key={group._id} value={`group:${group._id}`}>
+                          📦 {group.name} ({group.rooms.length} أماكن)
+                        </option>
+                      ))}
+                    </>
+                  )}
+                  
+                  {/* Rooms NOT in groups */}
+                  {getRoomsNotInGroups().length > 0 && (
+                    <>
+                      <option disabled>──── الأماكن ────</option>
+                      {getRoomsNotInGroups().map((room) => (
+                        <option key={room._id} value={room._id}>
+                          {room.name}
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
 
