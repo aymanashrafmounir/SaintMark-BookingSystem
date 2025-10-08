@@ -1336,6 +1336,48 @@
   font-weight: 600;
 }
 
+/* Group Card Styles */
+.group-card {
+  background: linear-gradient(135deg, #fff3cd 0%, #fff8e1 100%);
+  border-left: 4px solid #ffc107;
+}
+
+.group-rooms-list {
+  margin: 1rem 0;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+}
+
+.group-rooms-list strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+.rooms-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.room-tag {
+  display: inline-block;
+  background: #007bff;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.no-rooms {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
 /* Pagination Styles */
 .pagination {
   display: flex;

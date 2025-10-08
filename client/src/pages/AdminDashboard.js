@@ -12,7 +12,7 @@ import {
   X,
   RefreshCw
 } from 'lucide-react';
-import { roomAPI, slotAPI, bookingAPI, exportAPI } from '../services/api';
+import { roomAPI, roomGroupAPI, slotAPI, bookingAPI, exportAPI } from '../services/api';
 import socketService from '../services/socket';
 import './AdminDashboard.css';
 
@@ -37,15 +37,18 @@ const formatTimeRange = (startTime, endTime) => {
 function AdminDashboard({ setIsAuthenticated }) {
   const [activeTab, setActiveTab] = useState('rooms');
   const [rooms, setRooms] = useState([]);
+  const [roomGroups, setRoomGroups] = useState([]);
   const [slots, setSlots] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [pendingBookings, setPendingBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showRoomModal, setShowRoomModal] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSlotModal, setShowSlotModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [slotToDelete, setSlotToDelete] = useState(null);
   const [editingRoom, setEditingRoom] = useState(null);
+  const [editingGroup, setEditingGroup] = useState(null);
   const [editingSlot, setEditingSlot] = useState(null);
   
   // Confirmation Modal
@@ -57,6 +60,7 @@ function AdminDashboard({ setIsAuthenticated }) {
   });
 
   const [roomForm, setRoomForm] = useState({ name: '', isEnabled: true });
+  const [groupForm, setGroupForm] = useState({ name: '', rooms: [], isEnabled: true });
   const [slotForm, setSlotForm] = useState({
     roomId: '',
     startTime: '',
@@ -118,6 +122,15 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   }, []);
 
+  const loadRoomGroups = useCallback(async () => {
+    try {
+      const response = await roomGroupAPI.getAll();
+      setRoomGroups(response.data);
+    } catch (error) {
+      console.error('Load room groups error:', error);
+    }
+  }, []);
+
   const loadSlots = useCallback(async () => {
     try {
       const response = await slotAPI.getAll();
@@ -150,7 +163,7 @@ function AdminDashboard({ setIsAuthenticated }) {
     }, 30000); // 30 seconds timeout
     
     try {
-      await Promise.all([loadRooms(), loadSlots(), loadBookings()]);
+      await Promise.all([loadRooms(), loadRoomGroups(), loadSlots(), loadBookings()]);
       clearTimeout(loadingTimeout);
     } catch (error) {
       clearTimeout(loadingTimeout);
@@ -229,6 +242,69 @@ function AdminDashboard({ setIsAuthenticated }) {
       loadRooms();
     } catch (error) {
         toast.error('فشل تحديث حالة المكان');
+    }
+  };
+
+  const handleCreateGroup = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingGroup) {
+        await roomGroupAPI.update(editingGroup._id, groupForm);
+        toast.success('تم تحديث المجموعة بنجاح');
+      } else {
+        await roomGroupAPI.create(groupForm);
+        toast.success('تم إنشاء المجموعة بنجاح');
+      }
+      setShowGroupModal(false);
+      setGroupForm({ name: '', rooms: [], isEnabled: true });
+      setEditingGroup(null);
+      loadRoomGroups();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Operation failed');
+    }
+  };
+
+  const handleDeleteGroup = async (id) => {
+    openConfirmModal(
+      '🗑️ حذف المجموعة',
+      'هل أنت متأكد من حذف هذه المجموعة؟',
+      async () => {
+        try {
+          await roomGroupAPI.delete(id);
+          toast.success('تم حذف المجموعة بنجاح');
+          loadRoomGroups();
+        } catch (error) {
+          toast.error('فشل حذف المجموعة');
+        }
+      }
+    );
+  };
+
+  const handleToggleGroupStatus = async (group) => {
+    try {
+      await roomGroupAPI.update(group._id, { isEnabled: !group.isEnabled });
+      toast.success(`تم ${!group.isEnabled ? 'تفعيل' : 'تعطيل'} المجموعة بنجاح`);
+      loadRoomGroups();
+    } catch (error) {
+      toast.error('فشل تحديث حالة المجموعة');
+    }
+  };
+
+  const openEditGroup = (group) => {
+    setEditingGroup(group);
+    setGroupForm({
+      name: group.name,
+      rooms: group.rooms.map(r => r._id),
+      isEnabled: group.isEnabled
+    });
+    setShowGroupModal(true);
+  };
+
+  const toggleRoomInGroup = (roomId) => {
+    if (groupForm.rooms.includes(roomId)) {
+      setGroupForm({ ...groupForm, rooms: groupForm.rooms.filter(id => id !== roomId) });
+    } else {
+      setGroupForm({ ...groupForm, rooms: [...groupForm.rooms, roomId] });
     }
   };
 
@@ -672,6 +748,12 @@ function AdminDashboard({ setIsAuthenticated }) {
             <Home size={20} /> الأماكن ({rooms.length})
           </button>
           <button
+            className={`tab ${activeTab === 'groups' ? 'active' : ''}`}
+            onClick={() => setActiveTab('groups')}
+          >
+            📦 المجموعات ({roomGroups.length})
+          </button>
+          <button
             className={`tab ${activeTab === 'slots' ? 'active' : ''}`}
             onClick={() => setActiveTab('slots')}
           >
@@ -737,6 +819,71 @@ function AdminDashboard({ setIsAuthenticated }) {
                       <button
                         className="btn-delete"
                         onClick={() => handleDeleteRoom(room._id)}
+                      >
+                        <Trash2 size={16} /> حذف
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'groups' && (
+            <div className="groups-section">
+              <div className="section-header">
+                <h2>إدارة المجموعات</h2>
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setEditingGroup(null);
+                    setGroupForm({ name: '', rooms: [], isEnabled: true });
+                    setShowGroupModal(true);
+                  }}
+                >
+                  <Plus size={18} /> إضافة مجموعة
+                </button>
+              </div>
+
+              <div className="rooms-grid">
+                {roomGroups.map((group) => (
+                  <div key={group._id} className="room-card group-card">
+                    <div className="room-header">
+                      <h3>📦 {group.name}</h3>
+                      <span className={`status-badge ${group.isEnabled ? 'enabled' : 'disabled'}`}>
+                        {group.isEnabled ? 'مفعّل' : 'معطّل'}
+                      </span>
+                    </div>
+                    <div className="group-rooms-list">
+                      <strong>الأماكن ({group.rooms.length}):</strong>
+                      <div className="rooms-tags">
+                        {group.rooms.map((room) => (
+                          <span key={room._id} className="room-tag">
+                            {room.name}
+                          </span>
+                        ))}
+                        {group.rooms.length === 0 && (
+                          <span className="no-rooms">لا توجد أماكن</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="room-actions">
+                      <button
+                        className={`btn-toggle ${group.isEnabled ? 'enabled' : 'disabled'}`}
+                        onClick={() => handleToggleGroupStatus(group)}
+                        title={group.isEnabled ? 'تعطيل المجموعة' : 'تفعيل المجموعة'}
+                      >
+                        {group.isEnabled ? '❌ تعطيل' : '✅ تفعيل'}
+                      </button>
+                      <button
+                        className="btn-edit"
+                        onClick={() => openEditGroup(group)}
+                      >
+                        <Edit2 size={16} /> تعديل
+                      </button>
+                      <button
+                        className="btn-delete"
+                        onClick={() => handleDeleteGroup(group._id)}
                       >
                         <Trash2 size={16} /> حذف
                       </button>
@@ -1154,6 +1301,70 @@ function AdminDashboard({ setIsAuthenticated }) {
                 </button>
                 <button type="submit" className="btn-primary">
                   {editingRoom ? 'تحديث' : 'إنشاء'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Group Modal */}
+      {showGroupModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>{editingGroup ? 'تعديل المجموعة' : 'إضافة مجموعة جديدة'}</h2>
+              <button onClick={() => setShowGroupModal(false)}><X size={24} /></button>
+            </div>
+            <form onSubmit={handleCreateGroup} className="modal-form">
+              <div className="form-group">
+                <label>اسم المجموعة</label>
+                <input
+                  type="text"
+                  value={groupForm.name}
+                  onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
+                  required
+                  placeholder="مثال: 400's"
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>اختر الأماكن للمجموعة</label>
+                <div className="rooms-checkboxes">
+                  {rooms.filter(r => r.isEnabled).map((room) => (
+                    <label key={room._id} className="checkbox-label room-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={groupForm.rooms.includes(room._id)}
+                        onChange={() => toggleRoomInGroup(room._id)}
+                      />
+                      <span>{room.name}</span>
+                    </label>
+                  ))}
+                </div>
+                {groupForm.rooms.length > 0 && (
+                  <div className="selected-count">
+                    ✓ تم اختيار {groupForm.rooms.length} مكان
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={groupForm.isEnabled}
+                    onChange={(e) => setGroupForm({ ...groupForm, isEnabled: e.target.checked })}
+                  />
+                  <span>تفعيل هذه المجموعة</span>
+                </label>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setShowGroupModal(false)}>
+                  إلغاء
+                </button>
+                <button type="submit" className="btn-primary">
+                  {editingGroup ? 'تحديث' : 'إنشاء'}
                 </button>
               </div>
             </form>

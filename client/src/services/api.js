@@ -35,6 +35,15 @@ export const roomAPI = {
   delete: (id) => api.delete(`/rooms/${id}`)
 };
 
+// Room Group APIs
+export const roomGroupAPI = {
+  getAll: () => api.get('/room-groups'),
+  getById: (id) => api.get(`/room-groups/${id}`),
+  create: (data) => api.post('/room-groups', data),
+  update: (id, data) => api.put(`/room-groups/${id}`, data),
+  delete: (id) => api.delete(`/room-groups/${id}`)
+};
+
 // Slot APIs
 export const slotAPI = {
   getAll: () => api.get('/slots'),

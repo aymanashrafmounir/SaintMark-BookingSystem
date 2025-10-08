@@ -63,6 +63,7 @@ app.get('/', (req, res) => {
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/rooms', require('./routes/rooms'));
+app.use('/api/room-groups', require('./routes/roomGroups'));
 app.use('/api/slots', require('./routes/slots'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/export', require('./routes/export'));
