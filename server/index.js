@@ -10,29 +10,9 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// CORS Configuration - Allow Netlify, Vercel, and Local Development
+// CORS Configuration - Open to all origins
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-    
-    // Allow localhost for development
-    if (origin.includes('localhost')) return callback(null, true);
-    
-    // Allow any Netlify app
-    if (origin.endsWith('.netlify.app')) return callback(null, true);
-    
-    // Allow any Vercel app
-    if (origin.endsWith('.vercel.app')) return callback(null, true);
-    
-    // Allow custom domain from environment variable
-    if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) {
-      return callback(null, true);
-    }
-    
-    // Reject other origins
-    callback(new Error('Not allowed by CORS'));
-  },
+  origin: true, // Allow all origins
   credentials: true
 };
 
