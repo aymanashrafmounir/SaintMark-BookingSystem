@@ -27,8 +27,8 @@ const formatTime12Hour = (time24) => {
 const formatTimeRange = (startTime, endTime) => {
   const start = formatTime12Hour(startTime);
   const end = formatTime12Hour(endTime);
-  // Use "حتى" instead of dash to avoid RTL issues
-  return `${start} حتى ${end}`;
+  // Force LTR for each time using embedding characters
+  return `\u202A${start}\u202C ← \u202A${end}\u202C`;
 };
 
 function UserPortal() {
