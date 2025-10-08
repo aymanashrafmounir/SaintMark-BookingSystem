@@ -1153,15 +1153,20 @@ function AdminDashboard({ setIsAuthenticated }) {
                   <label>النوع</label>
                   <select
                     value={slotForm.type}
-                    onChange={(e) => setSlotForm({ ...slotForm, type: e.target.value })}
+                    onChange={(e) => setSlotForm({ ...slotForm, type: e.target.value, weeklyOccurrences: 1 })}
                   >
                     <option value="single">مرة واحدة</option>
+                    <option value="weekly">أسبوعي</option>
                   </select>
-                  <small className="form-hint">في وضع الإضافة المتعددة، يتم إنشاء مواعيد مرة واحدة فقط</small>
+                  {slotForm.type === 'weekly' && (
+                    <small className="form-hint">
+                      ℹ️ سيتم إنشاء مواعيد أسبوعية لكل تاريخ في القائمة
+                    </small>
+                  )}
                 </div>
               )}
               
-              {slotForm.type === 'weekly' && !editingSlot && (
+              {slotForm.type === 'weekly' && !editingSlot && !bulkMode && (
                 <div className="form-group weekly-occurrences">
                   <label>
                     عدد الأسابيع (كم موعد أسبوعي سيتم إنشاؤه؟)
