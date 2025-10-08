@@ -106,10 +106,20 @@ function AdminDashboard({ setIsAuthenticated }) {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    
+    // Add timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      setLoading(false);
+      toast.error('الاتصال بالخادم بطيء. يرجى المحاولة مرة أخرى.');
+    }, 15000); // 15 seconds timeout
+    
     try {
       await Promise.all([loadRooms(), loadSlots(), loadBookings()]);
+      clearTimeout(loadingTimeout);
     } catch (error) {
-      toast.error('فشل تحميل البيانات');
+      clearTimeout(loadingTimeout);
+      console.error('Load data error:', error);
+      toast.error('فشل تحميل البيانات. تحقق من اتصال الإنترنت.');
     } finally {
       setLoading(false);
     }

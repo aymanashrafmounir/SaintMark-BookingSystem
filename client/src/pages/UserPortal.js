@@ -61,14 +61,24 @@ function UserPortal() {
 
   const loadRooms = useCallback(async () => {
     setLoading(true);
+    
+    // Add timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      setLoading(false);
+      toast.error('الاتصال بالخادم بطيء. يرجى المحاولة مرة أخرى.');
+    }, 15000); // 15 seconds timeout
+    
     try {
       const response = await roomAPI.getAll();
+      clearTimeout(loadingTimeout);
       const enabledRooms = response.data.filter(room => room.isEnabled);
       setRooms(enabledRooms);
       // Set default to "all" to show all rooms
       setSelectedRoom('all');
     } catch (error) {
-      toast.error('فشل تحميل الأماكن');
+      clearTimeout(loadingTimeout);
+      console.error('Load rooms error:', error);
+      toast.error('فشل تحميل الأماكن. تحقق من اتصال الإنترنت.');
     } finally {
       setLoading(false);
     }
@@ -228,6 +238,12 @@ function UserPortal() {
     return (
       <div className="user-portal">
         <div className="spinner"></div>
+        <p style={{ textAlign: 'center', marginTop: '20px', color: '#666' }}>
+          جاري التحميل من الخادم...
+        </p>
+        <p style={{ textAlign: 'center', fontSize: '0.9rem', color: '#999' }}>
+          قد يستغرق الأمر بضع ثوانٍ في المرة الأولى
+        </p>
       </div>
     );
   }
