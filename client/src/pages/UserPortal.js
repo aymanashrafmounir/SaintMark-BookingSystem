@@ -452,6 +452,8 @@ function UserPortal() {
                 <h2>
                   {selectedRoom === 'all' 
                     ? 'الأوقات المتاحة في جميع الأماكن' 
+                    : selectedRoom?.isGroup
+                    ? `الأوقات المتاحة في مجموعة ${selectedRoom?.name}`
                     : `الأوقات المتاحة في ${selectedRoom?.name}`}
                 </h2>
                 <span className="slot-count">
@@ -473,7 +475,7 @@ function UserPortal() {
                       className={`slot-card ${slot.status}`}
                     >
                       <div className="slot-header-info">
-                        {selectedRoom === 'all' && (
+                        {(selectedRoom === 'all' || selectedRoom?.isGroup) && (
                           <div className="slot-room-name">
                             📍 {slot.roomId?.name}
                           </div>
