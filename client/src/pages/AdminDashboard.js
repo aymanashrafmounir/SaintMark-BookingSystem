@@ -991,7 +991,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                       type="text"
                       value={slotForm.providerName}
                       onChange={(e) => setSlotForm({ ...slotForm, providerName: e.target.value })}
-                      placeholder="مثال: أحمد محمد"
+                      placeholder="مثال: فيلوباتير ماجد"
                     />
                   </div>
                 </>
