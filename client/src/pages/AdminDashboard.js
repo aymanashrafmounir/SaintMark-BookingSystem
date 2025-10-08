@@ -30,8 +30,8 @@ const formatTime12Hour = (time24) => {
 const formatTimeRange = (startTime, endTime) => {
   const start = formatTime12Hour(startTime);
   const end = formatTime12Hour(endTime);
-  // Use Unicode LTR embedding to force correct direction
-  return `\u202A${start} - ${end}\u202C`;
+  // Use Unicode RTL mark to fix Arabic time display
+  return `${start}\u200F - \u200F${end}`; // Add RTL marks between elements
 };
 
 function AdminDashboard({ setIsAuthenticated }) {
