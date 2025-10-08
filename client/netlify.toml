@@ -2,6 +2,10 @@
   command = "npm install && npm run build"
   publish = "build"
 
+[build.environment]
+  REACT_APP_API_URL = "https://saintmark-bookingsystem-backend.onrender.com/api"
+  REACT_APP_SOCKET_URL = "https://saintmark-bookingsystem-backend.onrender.com"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
