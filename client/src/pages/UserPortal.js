@@ -28,7 +28,7 @@ const formatTimeRange = (startTime, endTime) => {
   const start = formatTime12Hour(startTime);
   const end = formatTime12Hour(endTime);
   // Force LTR for each time using embedding characters
-  return `\u202A${start}\u202C ← \u202A${end}\u202C`;
+  return `\u202A${start}\u202C → \u202A${end}\u202C`;
 };
 
 function UserPortal() {
