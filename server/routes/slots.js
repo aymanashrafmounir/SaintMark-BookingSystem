@@ -78,6 +78,67 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
+// Bulk create slots (admin only) - Add multiple slots to multiple rooms at once
+router.post('/bulk', authMiddleware, async (req, res) => {
+  try {
+    const { roomIds, slots } = req.body;
+
+    // Validate input
+    if (!roomIds || !Array.isArray(roomIds) || roomIds.length === 0) {
+      return res.status(400).json({ error: 'At least one room must be selected' });
+    }
+
+    if (!slots || !Array.isArray(slots) || slots.length === 0) {
+      return res.status(400).json({ error: 'At least one slot must be provided' });
+    }
+
+    // Validate each slot has required fields
+    for (const slot of slots) {
+      if (!slot.startTime || !slot.endTime || !slot.date) {
+        return res.status(400).json({ error: 'Each slot must have startTime, endTime, and date' });
+      }
+    }
+
+    // Create all combinations of rooms and slots
+    const slotsToCreate = [];
+    
+    for (const roomId of roomIds) {
+      for (const slotData of slots) {
+        const hasServiceProvider = slotData.serviceName && slotData.providerName;
+        
+        slotsToCreate.push({
+          roomId,
+          startTime: slotData.startTime,
+          endTime: slotData.endTime,
+          serviceName: slotData.serviceName || '',
+          providerName: slotData.providerName || '',
+          date: new Date(slotData.date),
+          type: slotData.type || 'single',
+          status: hasServiceProvider ? 'booked' : 'available',
+          bookedBy: hasServiceProvider ? slotData.providerName : null
+        });
+      }
+    }
+
+    // Insert all slots at once
+    const createdSlots = await Slot.insertMany(slotsToCreate);
+    
+    // Populate room details
+    const populatedSlots = await Slot.find({ 
+      _id: { $in: createdSlots.map(s => s._id) } 
+    }).populate('roomId', 'name isEnabled');
+
+    res.status(201).json({
+      success: true,
+      count: populatedSlots.length,
+      slots: populatedSlots
+    });
+  } catch (error) {
+    console.error('Bulk create slots error:', error);
+    res.status(500).json({ error: 'Failed to create slots' });
+  }
+});
+
 // Update slot (admin only)
 router.put('/:id', authMiddleware, async (req, res) => {
   try {

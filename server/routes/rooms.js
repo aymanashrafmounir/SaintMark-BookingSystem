@@ -7,7 +7,7 @@ const authMiddleware = require('../middleware/auth');
 // Get all rooms (public - for users)
 router.get('/', async (req, res) => {
   try {
-    const rooms = await Room.find().sort({ createdAt: -1 });
+    const rooms = await Room.find().sort({ name: 1 });
     res.json(rooms);
   } catch (error) {
     console.error('Get rooms error:', error);

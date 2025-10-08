@@ -69,6 +69,9 @@ function AdminDashboard({ setIsAuthenticated }) {
   });
   
   const [makeAvailable, setMakeAvailable] = useState(true);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedRooms, setSelectedRooms] = useState([]);
+  const [multipleSlots, setMultipleSlots] = useState([{ startTime: '', endTime: '', date: '' }]);
   
   // Slot filters
   const [slotFilters, setSlotFilters] = useState({
@@ -231,6 +234,37 @@ function AdminDashboard({ setIsAuthenticated }) {
       if (editingSlot) {
         await slotAPI.update(editingSlot._id, baseSlotData);
         toast.success('تم تحديث الموعد بنجاح');
+      } else if (bulkMode) {
+        // Bulk mode: multiple rooms and/or multiple slots
+        const roomIds = selectedRooms.length > 0 ? selectedRooms : [slotForm.roomId];
+        
+        if (roomIds.length === 0 || !roomIds[0]) {
+          toast.error('يجب اختيار مكان واحد على الأقل');
+          return;
+        }
+        
+        // Filter valid slots
+        const validSlots = multipleSlots.filter(slot => 
+          slot.startTime && slot.endTime && slot.date
+        );
+        
+        if (validSlots.length === 0) {
+          toast.error('يجب إضافة موعد واحد صحيح على الأقل');
+          return;
+        }
+        
+        // Prepare slots data
+        const slotsData = validSlots.map(slot => ({
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          date: slot.date,
+          serviceName: makeAvailable ? '' : slotForm.serviceName,
+          providerName: makeAvailable ? '' : slotForm.providerName,
+          type: slotForm.type
+        }));
+        
+        await slotAPI.bulkCreate({ roomIds, slots: slotsData });
+        toast.success(`تم إنشاء ${roomIds.length * validSlots.length} موعد بنجاح!`);
       } else {
         // If weekly and multiple occurrences, create multiple slots
         if (slotForm.type === 'weekly' && slotForm.weeklyOccurrences > 1) {
@@ -273,10 +307,35 @@ function AdminDashboard({ setIsAuthenticated }) {
       });
       setEditingSlot(null);
       setMakeAvailable(true);
+      setBulkMode(false);
+      setSelectedRooms([]);
+      setMultipleSlots([{ startTime: '', endTime: '', date: '' }]);
       loadSlots();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Operation failed');
     }
+  };
+
+  const toggleRoomSelection = (roomId) => {
+    if (selectedRooms.includes(roomId)) {
+      setSelectedRooms(selectedRooms.filter(id => id !== roomId));
+    } else {
+      setSelectedRooms([...selectedRooms, roomId]);
+    }
+  };
+
+  const addSlot = () => {
+    setMultipleSlots([...multipleSlots, { startTime: '', endTime: '', date: '' }]);
+  };
+
+  const removeSlot = (index) => {
+    setMultipleSlots(multipleSlots.filter((_, i) => i !== index));
+  };
+
+  const updateSlot = (index, field, value) => {
+    const updated = [...multipleSlots];
+    updated[index][field] = value;
+    setMultipleSlots(updated);
   };
 
   const handleDeleteSlot = async (slot) => {
@@ -586,6 +645,9 @@ function AdminDashboard({ setIsAuthenticated }) {
                   onClick={() => {
                     setEditingSlot(null);
                     setMakeAvailable(true);
+                    setBulkMode(false);
+                    setSelectedRooms([]);
+                    setMultipleSlots([{ startTime: '', endTime: '', date: '' }]);
                     setSlotForm({
                       roomId: '',
                       startTime: '',
@@ -794,6 +856,21 @@ function AdminDashboard({ setIsAuthenticated }) {
                         <h3>{booking.userName}</h3>
                         <span className="status-badge pending">معلق</span>
                       </div>
+                      <div className="booking-timestamp">
+                        <span className="timestamp-label">📅 تم الإرسال:</span>
+                        <span className="timestamp-value">
+                          {new Date(booking.createdAt).toLocaleDateString('ar-EG', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                          {' '}
+                          {new Date(booking.createdAt).toLocaleTimeString('ar-EG', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
                       <div className="booking-details">
                         <p><strong>المكان:</strong> {booking.roomId?.name}</p>
                         <p><strong>التاريخ:</strong> {new Date(booking.date).toLocaleDateString('ar-EG')}</p>
@@ -830,6 +907,21 @@ function AdminDashboard({ setIsAuthenticated }) {
                       <h4>{booking.userName}</h4>
                       <span className={`status-badge ${booking.status}`}>
                         {booking.status === 'approved' ? 'موافق عليه' : booking.status === 'rejected' ? 'مرفوض' : booking.status}
+                      </span>
+                    </div>
+                    <div className="booking-timestamp">
+                      <span className="timestamp-label">📅 تم الإرسال:</span>
+                      <span className="timestamp-value">
+                        {new Date(booking.createdAt).toLocaleDateString('ar-EG', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                        {' '}
+                        {new Date(booking.createdAt).toLocaleTimeString('ar-EG', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </span>
                     </div>
                     <div className="booking-details">
@@ -905,61 +997,169 @@ function AdminDashboard({ setIsAuthenticated }) {
               <button onClick={() => setShowSlotModal(false)}><X size={24} /></button>
             </div>
             <form onSubmit={handleCreateSlot} className="modal-form">
-              <div className="form-group">
-                <label>المكان</label>
-                <select
-                  value={slotForm.roomId}
-                  onChange={(e) => setSlotForm({ ...slotForm, roomId: e.target.value })}
-                  required
-                >
-                  <option value="">اختر المكان</option>
-                  {rooms.filter(r => r.isEnabled).map((room) => (
-                    <option key={room._id} value={room._id}>{room.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>وقت البداية</label>
-                  <input
-                    type="time"
-                    value={slotForm.startTime}
-                    onChange={(e) => setSlotForm({ ...slotForm, startTime: e.target.value })}
-                    required
-                  />
+              
+              {!editingSlot && (
+                <div className="form-group bulk-toggle">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={bulkMode}
+                      onChange={(e) => {
+                        setBulkMode(e.target.checked);
+                        if (!e.target.checked) {
+                          setSelectedRooms([]);
+                          setMultipleSlots([{ startTime: '', endTime: '', date: '' }]);
+                        }
+                      }}
+                    />
+                    <span>🔄 وضع الإضافة المتعددة (اختر أكثر من مكان و/أو موعد)</span>
+                  </label>
                 </div>
+              )}
+
+              {bulkMode && !editingSlot ? (
+                <>
+                  <div className="form-group">
+                    <label>اختيار الأماكن (اختر مكان أو أكثر)</label>
+                    <div className="rooms-checkboxes">
+                      {rooms.filter(r => r.isEnabled).map((room) => (
+                        <label key={room._id} className="checkbox-label room-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={selectedRooms.includes(room._id)}
+                            onChange={() => toggleRoomSelection(room._id)}
+                          />
+                          <span>{room.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {selectedRooms.length > 0 && (
+                      <div className="selected-count">
+                        ✓ تم اختيار {selectedRooms.length} مكان
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label>المواعيد</label>
+                    <div className="multiple-slots">
+                      {multipleSlots.map((slot, index) => (
+                        <div key={index} className="slot-row">
+                          <input
+                            type="time"
+                            value={slot.startTime}
+                            onChange={(e) => updateSlot(index, 'startTime', e.target.value)}
+                            placeholder="من"
+                            required
+                          />
+                          <input
+                            type="time"
+                            value={slot.endTime}
+                            onChange={(e) => updateSlot(index, 'endTime', e.target.value)}
+                            placeholder="إلى"
+                            required
+                          />
+                          <input
+                            type="date"
+                            value={slot.date}
+                            onChange={(e) => updateSlot(index, 'date', e.target.value)}
+                            required
+                          />
+                          {multipleSlots.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn-remove-slot"
+                              onClick={() => removeSlot(index)}
+                            >
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn-add-slot"
+                        onClick={addSlot}
+                      >
+                        <Plus size={16} /> إضافة موعد آخر
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div className="form-group">
-                  <label>وقت النهاية</label>
-                  <input
-                    type="time"
-                    value={slotForm.endTime}
-                    onChange={(e) => setSlotForm({ ...slotForm, endTime: e.target.value })}
+                  <label>المكان</label>
+                  <select
+                    value={slotForm.roomId}
+                    onChange={(e) => setSlotForm({ ...slotForm, roomId: e.target.value })}
                     required
-                  />
+                  >
+                    <option value="">اختر المكان</option>
+                    {rooms.filter(r => r.isEnabled).map((room) => (
+                      <option key={room._id} value={room._id}>{room.name}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>التاريخ {slotForm.type === 'weekly' ? '(التكرار الأول)' : ''}</label>
-                  <input
-                    type="date"
-                    value={slotForm.date}
-                    onChange={(e) => setSlotForm({ ...slotForm, date: e.target.value })}
-                    required
-                  />
-                </div>
+              )}
+              {!bulkMode && (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>وقت البداية</label>
+                      <input
+                        type="time"
+                        value={slotForm.startTime}
+                        onChange={(e) => setSlotForm({ ...slotForm, startTime: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>وقت النهاية</label>
+                      <input
+                        type="time"
+                        value={slotForm.endTime}
+                        onChange={(e) => setSlotForm({ ...slotForm, endTime: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>التاريخ {slotForm.type === 'weekly' ? '(التكرار الأول)' : ''}</label>
+                      <input
+                        type="date"
+                        value={slotForm.date}
+                        onChange={(e) => setSlotForm({ ...slotForm, date: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>النوع</label>
+                      <select
+                        value={slotForm.type}
+                        onChange={(e) => setSlotForm({ ...slotForm, type: e.target.value, weeklyOccurrences: 1 })}
+                        required
+                      >
+                        <option value="single">مرة واحدة</option>
+                        <option value="weekly">أسبوعي</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              {bulkMode && (
                 <div className="form-group">
                   <label>النوع</label>
                   <select
                     value={slotForm.type}
-                    onChange={(e) => setSlotForm({ ...slotForm, type: e.target.value, weeklyOccurrences: 1 })}
-                    required
+                    onChange={(e) => setSlotForm({ ...slotForm, type: e.target.value })}
                   >
                     <option value="single">مرة واحدة</option>
-                    <option value="weekly">أسبوعي</option>
                   </select>
+                  <small className="form-hint">في وضع الإضافة المتعددة، يتم إنشاء مواعيد مرة واحدة فقط</small>
                 </div>
-              </div>
+              )}
               
               {slotForm.type === 'weekly' && !editingSlot && (
                 <div className="form-group weekly-occurrences">

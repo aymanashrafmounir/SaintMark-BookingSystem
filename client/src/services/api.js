@@ -43,6 +43,7 @@ export const slotAPI = {
     return api.get(`/slots/room/${roomId}`, { params });
   },
   create: (data) => api.post('/slots', data),
+  bulkCreate: (data) => api.post('/slots/bulk', data),
   update: (id, data) => api.put(`/slots/${id}`, data),
   delete: (id) => api.delete(`/slots/${id}`)
 };
