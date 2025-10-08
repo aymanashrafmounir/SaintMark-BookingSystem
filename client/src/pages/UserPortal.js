@@ -62,11 +62,11 @@ function UserPortal() {
   const loadRooms = useCallback(async () => {
     setLoading(true);
     
-    // Increase timeout for Render cold start (can take 30-60 seconds)
+    // Timeout to handle slow backend response (Render cold start)
     const loadingTimeout = setTimeout(() => {
       setLoading(false);
-      toast.error('انتهت مهلة الاتصال. الخادم قد يكون في وضع السكون. حاول مرة أخرى.');
-    }, 45000); // 45 seconds timeout for cold start
+      toast.error('انتهت مهلة الاتصال. يرجى تحديث الصفحة.');
+    }, 30000); // 30 seconds timeout
     
     try {
       const response = await roomAPI.getAll();
@@ -136,6 +136,15 @@ function UserPortal() {
     // Connect to socket for real-time updates
     socketService.connect();
 
+    return () => {
+      socketService.removeListener('booking-approved');
+      socketService.removeListener('booking-rejected');
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+
+  useEffect(() => {
+    // Setup socket listeners when component mounts or dependencies change
     socketService.onBookingApproved((booking) => {
       toast.success('تمت الموافقة على حجز!');
       if (selectedRoom === 'all') {
@@ -152,12 +161,7 @@ function UserPortal() {
         loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
       }
     });
-
-    return () => {
-      socketService.removeListener('booking-approved');
-      socketService.removeListener('booking-rejected');
-    };
-  }, [loadRooms, loadAllSlotsForDateRange, loadSlotsForDateRange, selectedRoom, startDate, endDate]);
+  }, [loadAllSlotsForDateRange, loadSlotsForDateRange, selectedRoom, startDate, endDate]);
 
   useEffect(() => {
     if (startDate && endDate && rooms.length > 0) {
@@ -240,13 +244,10 @@ function UserPortal() {
       <div className="user-portal">
         <div className="spinner"></div>
         <p style={{ textAlign: 'center', marginTop: '20px', color: '#666', fontSize: '1.1rem' }}>
-          جاري الاتصال بالخادم...
+          جاري التحميل...
         </p>
-        <p style={{ textAlign: 'center', fontSize: '0.95rem', color: '#888', marginTop: '10px' }}>
-          ⏳ قد يستغرق الأمر حتى دقيقة في المرة الأولى
-        </p>
-        <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#aaa', marginTop: '5px' }}>
-          (الخادم المجاني يحتاج وقت للتشغيل)
+        <p style={{ textAlign: 'center', fontSize: '0.9rem', color: '#999', marginTop: '8px' }}>
+          يرجى الانتظار
         </p>
       </div>
     );

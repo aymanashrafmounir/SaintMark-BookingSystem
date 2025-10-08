@@ -107,11 +107,11 @@ function AdminDashboard({ setIsAuthenticated }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     
-    // Increase timeout for Render cold start (can take 30-60 seconds)
+    // Timeout to handle slow backend response (Render cold start)
     const loadingTimeout = setTimeout(() => {
       setLoading(false);
-      toast.error('انتهت مهلة الاتصال. الخادم قد يكون في وضع السكون. حاول مرة أخرى.');
-    }, 45000); // 45 seconds timeout for cold start
+      toast.error('انتهت مهلة الاتصال. يرجى تحديث الصفحة.');
+    }, 30000); // 30 seconds timeout
     
     try {
       await Promise.all([loadRooms(), loadSlots(), loadBookings()]);
