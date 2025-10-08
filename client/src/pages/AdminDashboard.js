@@ -253,18 +253,42 @@ function AdminDashboard({ setIsAuthenticated }) {
           return;
         }
         
-        // Prepare slots data
-        const slotsData = validSlots.map(slot => ({
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          date: slot.date,
-          serviceName: makeAvailable ? '' : slotForm.serviceName,
-          providerName: makeAvailable ? '' : slotForm.providerName,
-          type: slotForm.type
-        }));
+        // Prepare slots data - expand weekly slots if needed
+        let slotsData = [];
+        
+        if (slotForm.type === 'weekly' && slotForm.weeklyOccurrences > 1) {
+          // Expand each slot into multiple weekly occurrences
+          const occurrences = parseInt(slotForm.weeklyOccurrences);
+          
+          validSlots.forEach(slot => {
+            for (let i = 0; i < occurrences; i++) {
+              const slotDate = new Date(slot.date);
+              slotDate.setDate(slotDate.getDate() + (i * 7)); // Add 7 days for each occurrence
+              
+              slotsData.push({
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+                date: slotDate.toISOString().split('T')[0],
+                serviceName: makeAvailable ? '' : slotForm.serviceName,
+                providerName: makeAvailable ? '' : slotForm.providerName,
+                type: slotForm.type
+              });
+            }
+          });
+        } else {
+          // Normal slots without expansion
+          slotsData = validSlots.map(slot => ({
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            date: slot.date,
+            serviceName: makeAvailable ? '' : slotForm.serviceName,
+            providerName: makeAvailable ? '' : slotForm.providerName,
+            type: slotForm.type
+          }));
+        }
         
         await slotAPI.bulkCreate({ roomIds, slots: slotsData });
-        toast.success(`تم إنشاء ${roomIds.length * validSlots.length} موعد بنجاح!`);
+        toast.success(`تم إنشاء ${roomIds.length * slotsData.length} موعد بنجاح!`);
       } else {
         // If weekly and multiple occurrences, create multiple slots
         if (slotForm.type === 'weekly' && slotForm.weeklyOccurrences > 1) {
@@ -1149,21 +1173,35 @@ function AdminDashboard({ setIsAuthenticated }) {
               )}
               
               {bulkMode && (
-                <div className="form-group">
-                  <label>النوع</label>
-                  <select
-                    value={slotForm.type}
-                    onChange={(e) => setSlotForm({ ...slotForm, type: e.target.value, weeklyOccurrences: 1 })}
-                  >
-                    <option value="single">مرة واحدة</option>
-                    <option value="weekly">أسبوعي</option>
-                  </select>
+                <>
+                  <div className="form-group">
+                    <label>النوع</label>
+                    <select
+                      value={slotForm.type}
+                      onChange={(e) => setSlotForm({ ...slotForm, type: e.target.value, weeklyOccurrences: 1 })}
+                    >
+                      <option value="single">مرة واحدة</option>
+                      <option value="weekly">أسبوعي</option>
+                    </select>
+                  </div>
+                  
                   {slotForm.type === 'weekly' && (
-                    <small className="form-hint">
-                      ℹ️ سيتم إنشاء مواعيد أسبوعية لكل تاريخ في القائمة
-                    </small>
+                    <div className="form-group weekly-occurrences">
+                      <label>عدد الأسابيع (كم مرة يتكرر كل موعد؟)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="52"
+                        value={slotForm.weeklyOccurrences}
+                        onChange={(e) => setSlotForm({ ...slotForm, weeklyOccurrences: e.target.value })}
+                        placeholder="مثال: 4 (يكرر كل موعد 4 مرات، كل 7 أيام)"
+                      />
+                      <small className="form-hint">
+                        ℹ️ كل موعد في القائمة سيتكرر {slotForm.weeklyOccurrences} مرة، كل أسبوع (+7 أيام)
+                      </small>
+                    </div>
                   )}
-                </div>
+                </>
               )}
               
               {slotForm.type === 'weekly' && !editingSlot && !bulkMode && (
