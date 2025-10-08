@@ -44,45 +44,6 @@ function UserPortal() {
   const [serviceName, setServiceName] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadRooms();
-    
-    // Connect to socket for real-time updates
-    socketService.connect();
-
-    socketService.onBookingApproved((booking) => {
-      toast.success('تمت الموافقة على حجز!');
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate);
-      } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
-      }
-    });
-
-    socketService.onBookingRejected(() => {
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate);
-      } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
-      }
-    });
-
-    return () => {
-      socketService.removeListener('booking-approved');
-      socketService.removeListener('booking-rejected');
-    };
-  }, [loadRooms, loadAllSlotsForDateRange, loadSlotsForDateRange, selectedRoom, startDate, endDate]);
-
-  useEffect(() => {
-    if (startDate && endDate && rooms.length > 0) {
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate);
-      } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
-      }
-    }
-  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange]);
-
   // Helper function to get array of dates between start and end
   const getDateRange = useCallback((start, end) => {
     const dates = [];
@@ -157,6 +118,45 @@ function UserPortal() {
       toast.error('فشل تحميل الأوقات');
     }
   }, [rooms, getDateRange]);
+
+  useEffect(() => {
+    loadRooms();
+    
+    // Connect to socket for real-time updates
+    socketService.connect();
+
+    socketService.onBookingApproved((booking) => {
+      toast.success('تمت الموافقة على حجز!');
+      if (selectedRoom === 'all') {
+        loadAllSlotsForDateRange(startDate, endDate);
+      } else if (selectedRoom) {
+        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+      }
+    });
+
+    socketService.onBookingRejected(() => {
+      if (selectedRoom === 'all') {
+        loadAllSlotsForDateRange(startDate, endDate);
+      } else if (selectedRoom) {
+        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+      }
+    });
+
+    return () => {
+      socketService.removeListener('booking-approved');
+      socketService.removeListener('booking-rejected');
+    };
+  }, [loadRooms, loadAllSlotsForDateRange, loadSlotsForDateRange, selectedRoom, startDate, endDate]);
+
+  useEffect(() => {
+    if (startDate && endDate && rooms.length > 0) {
+      if (selectedRoom === 'all') {
+        loadAllSlotsForDateRange(startDate, endDate);
+      } else if (selectedRoom) {
+        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+      }
+    }
+  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange]);
 
   const handleBookSlot = (slot) => {
     if (slot.status === 'booked') {

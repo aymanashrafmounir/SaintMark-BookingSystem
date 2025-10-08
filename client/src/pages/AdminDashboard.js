@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { 
   Home, 
@@ -48,7 +47,6 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [slotToDelete, setSlotToDelete] = useState(null);
   const [editingRoom, setEditingRoom] = useState(null);
   const [editingSlot, setEditingSlot] = useState(null);
-  const navigate = useNavigate();
 
   const [roomForm, setRoomForm] = useState({ name: '', isEnabled: true });
   const [slotForm, setSlotForm] = useState({
