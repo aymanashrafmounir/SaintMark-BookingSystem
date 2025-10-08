@@ -49,6 +49,17 @@ io.on('connection', (socket) => {
 // Make io accessible to routes
 app.set('io', io);
 
+// Root health check - for easy monitoring
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'Saint Mark Booking System Backend is running',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/rooms', require('./routes/rooms'));
