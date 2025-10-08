@@ -47,6 +47,14 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [slotToDelete, setSlotToDelete] = useState(null);
   const [editingRoom, setEditingRoom] = useState(null);
   const [editingSlot, setEditingSlot] = useState(null);
+  
+  // Confirmation Modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState({
+    title: '',
+    message: '',
+    onConfirm: null
+  });
 
   const [roomForm, setRoomForm] = useState({ name: '', isEnabled: true });
   const [slotForm, setSlotForm] = useState({
@@ -72,6 +80,19 @@ function AdminDashboard({ setIsAuthenticated }) {
     startTime: '',
     endTime: ''
   });
+
+  // Open confirmation modal
+  const openConfirmModal = (title, message, onConfirm) => {
+    setConfirmConfig({ title, message, onConfirm });
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirm = () => {
+    if (confirmConfig.onConfirm) {
+      confirmConfig.onConfirm();
+    }
+    setShowConfirmModal(false);
+  };
 
   const loadRooms = useCallback(async () => {
     try {
@@ -170,16 +191,20 @@ function AdminDashboard({ setIsAuthenticated }) {
   };
 
   const handleDeleteRoom = async (id) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا المكان؟ سيتم حذف جميع الأوقات المرتبطة به.')) {
-      try {
-        await roomAPI.delete(id);
-        toast.success('تم حذف المكان بنجاح');
-        loadRooms();
-        loadSlots();
-      } catch (error) {
-        toast.error('فشل حذف المكان');
+    openConfirmModal(
+      '🗑️ حذف المكان',
+      'هل أنت متأكد من حذف هذا المكان؟ سيتم حذف جميع الأوقات المرتبطة به.',
+      async () => {
+        try {
+          await roomAPI.delete(id);
+          toast.success('تم حذف المكان بنجاح');
+          loadRooms();
+          loadSlots();
+        } catch (error) {
+          toast.error('فشل حذف المكان');
+        }
       }
-    }
+    );
   };
 
   const handleToggleRoomStatus = async (room) => {
@@ -260,16 +285,20 @@ function AdminDashboard({ setIsAuthenticated }) {
       setSlotToDelete(slot);
       setShowDeleteModal(true);
     } else {
-      // For single slots, delete directly with confirmation
-      if (window.confirm('هل أنت متأكد من حذف هذا الموعد؟')) {
-        try {
-          await slotAPI.delete(slot._id);
-          toast.success('تم حذف الموعد بنجاح');
-          loadSlots();
-        } catch (error) {
-          toast.error('فشل حذف الموعد');
+      // For single slots, delete with custom confirmation
+      openConfirmModal(
+        '🗑️ حذف الموعد',
+        'هل أنت متأكد من حذف هذا الموعد؟',
+        async () => {
+          try {
+            await slotAPI.delete(slot._id);
+            toast.success('تم حذف الموعد بنجاح');
+            loadSlots();
+          } catch (error) {
+            toast.error('فشل حذف الموعد');
+          }
         }
-      }
+      );
     }
   };
 
@@ -332,15 +361,19 @@ function AdminDashboard({ setIsAuthenticated }) {
   };
 
   const handleDeleteBooking = async (id, userName) => {
-    if (window.confirm(`هل أنت متأكد من حذف حجز ${userName}؟ لا يمكن التراجع عن هذا الإجراء.`)) {
-      try {
-        await bookingAPI.delete(id);
-        toast.success('تم حذف الحجز بنجاح');
-        loadBookings();
-      } catch (error) {
-        toast.error('فشل حذف الحجز');
+    openConfirmModal(
+      '🗑️ حذف الحجز',
+      `هل أنت متأكد من حذف حجز ${userName}؟ لا يمكن التراجع عن هذا الإجراء.`,
+      async () => {
+        try {
+          await bookingAPI.delete(id);
+          toast.success('تم حذف الحجز بنجاح');
+          loadBookings();
+        } catch (error) {
+          toast.error('فشل حذف الحجز');
+        }
       }
-    }
+    );
   };
 
   const handleExportExcel = async () => {
@@ -1068,6 +1101,40 @@ function AdminDashboard({ setIsAuthenticated }) {
               >
                 إلغاء
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="modal-overlay">
+          <div className="modal confirm-modal">
+            <div className="modal-header">
+              <h2>{confirmConfig.title}</h2>
+              <button onClick={() => setShowConfirmModal(false)}>
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="confirm-modal-content">
+              <div className="warning-icon">⚠️</div>
+              <p className="confirm-message">{confirmConfig.message}</p>
+              
+              <div className="confirm-actions">
+                <button 
+                  className="btn-secondary"
+                  onClick={() => setShowConfirmModal(false)}
+                >
+                  إلغاء
+                </button>
+                <button 
+                  className="btn-danger"
+                  onClick={handleConfirm}
+                >
+                  تأكيد الحذف
+                </button>
+              </div>
             </div>
           </div>
         </div>

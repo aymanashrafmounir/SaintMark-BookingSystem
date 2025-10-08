@@ -891,6 +891,66 @@
   font-size: 1rem;
 }
 
+/* Confirmation Modal */
+.confirm-modal {
+  max-width: 480px;
+}
+
+.confirm-modal-content {
+  padding: 2rem;
+  text-align: center;
+}
+
+.confirm-modal-content .warning-icon {
+  font-size: 4.5rem;
+  margin-bottom: 1.25rem;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.confirm-message {
+  font-size: 1.1rem;
+  color: #333;
+  margin: 1.5rem 0 2rem;
+  line-height: 1.6;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.confirm-actions button {
+  flex: 1;
+  padding: 0.875rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #c0392b, #a93226);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .rooms-grid {
