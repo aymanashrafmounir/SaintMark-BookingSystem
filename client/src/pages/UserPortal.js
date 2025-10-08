@@ -198,7 +198,7 @@ function UserPortal() {
       await bookingAPI.create({
         userName: userName.trim(),
         slotId: selectedSlot._id,
-        roomId: selectedRoom._id,
+        roomId: selectedSlot.roomId._id || selectedSlot.roomId, // Use slot's roomId for "all" view
         startTime: selectedSlot.startTime,
         endTime: selectedSlot.endTime,
         serviceName: serviceName.trim(),
@@ -449,7 +449,7 @@ function UserPortal() {
             <div className="booking-summary">
               <div className="summary-row">
                 <span className="label">المكان:</span>
-                <span className="value">{selectedRoom?.name}</span>
+                <span className="value">{selectedSlot.roomId?.name || selectedRoom?.name}</span>
               </div>
               <div className="summary-row">
                 <span className="label">التاريخ:</span>
@@ -468,7 +468,7 @@ function UserPortal() {
             <form onSubmit={handleSubmitBooking} className="booking-form">
               <div className="form-group">
                 <label>
-                  <User size={18} /> الاسم الكامل
+                  <User size={18} /> اسم الخادم
                 </label>
                 <input
                   type="text"
@@ -478,9 +478,6 @@ function UserPortal() {
                   required
                   autoFocus
                 />
-                <small style={{ color: '#666', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
-                  سيتم استخدام هذا الاسم كاسم الخادم
-                </small>
               </div>
 
               <div className="form-group">
@@ -491,7 +488,7 @@ function UserPortal() {
                   type="text"
                   value={serviceName}
                   onChange={(e) => setServiceName(e.target.value)}
-                  placeholder="مثال: اجتماع، تدريب، استشارة"
+                  placeholder="مثال: فريق سان بول , اسرة اولي ثانوي فصل القديس بولس"
                   required
                 />
               </div>
