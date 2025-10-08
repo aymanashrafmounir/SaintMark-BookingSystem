@@ -37,10 +37,15 @@ router.get('/pending', authMiddleware, async (req, res) => {
 // Create booking request (public - users)
 router.post('/', async (req, res) => {
   try {
-    const { userName, slotId, roomId, startTime, endTime, serviceName, providerName, date } = req.body;
+    const { userName, slotId, roomId, startTime, endTime, serviceName, providerName, phoneNumber, date } = req.body;
 
-    if (!userName || !slotId || !roomId || !startTime || !endTime || !serviceName || !providerName || !date) {
+    if (!userName || !slotId || !roomId || !startTime || !endTime || !serviceName || !providerName || !phoneNumber || !date) {
       return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Validate phone number format
+    if (!/^(010|011|012|015)\d{8}$/.test(phoneNumber)) {
+      return res.status(400).json({ error: 'رقم الهاتف غير صحيح! يجب أن يبدأ بـ 010, 011, 012, أو 015 ويكون 11 رقم' });
     }
 
     // Check if slot exists and is available
@@ -61,6 +66,7 @@ router.post('/', async (req, res) => {
       endTime,
       serviceName,
       providerName,
+      phoneNumber,
       date: new Date(date),
       status: 'pending'
     });

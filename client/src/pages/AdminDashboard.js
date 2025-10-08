@@ -88,6 +88,14 @@ function AdminDashboard({ setIsAuthenticated }) {
     endTime: ''
   });
 
+  // Pagination for slots
+  const [slotsCurrentPage, setSlotsCurrentPage] = useState(1);
+  const slotsPerPage = 50;
+
+  // Pagination for bookings
+  const [bookingsCurrentPage, setBookingsCurrentPage] = useState(1);
+  const bookingsPerPage = 50;
+
   // Open confirmation modal
   const openConfirmModal = (title, message, onConfirm) => {
     setConfirmConfig({ title, message, onConfirm });
@@ -570,7 +578,7 @@ function AdminDashboard({ setIsAuthenticated }) {
 
   // Filter slots based on selected filters
   const getFilteredSlots = () => {
-    return slots.filter(slot => {
+    const filtered = slots.filter(slot => {
       // Room filter
       if (slotFilters.roomId && slot.roomId?._id !== slotFilters.roomId) {
         return false;
@@ -611,6 +619,15 @@ function AdminDashboard({ setIsAuthenticated }) {
       
       return true;
     });
+
+    // Calculate pagination
+    const indexOfLastSlot = slotsCurrentPage * slotsPerPage;
+    const indexOfFirstSlot = indexOfLastSlot - slotsPerPage;
+    return {
+      all: filtered,
+      paginated: filtered.slice(indexOfFirstSlot, indexOfLastSlot),
+      totalPages: Math.ceil(filtered.length / slotsPerPage)
+    };
   };
 
   const clearSlotFilters = () => {
@@ -851,7 +868,7 @@ function AdminDashboard({ setIsAuthenticated }) {
 
                   <div className="filter-stats">
                     <span className="stats-badge">
-                      عرض {getFilteredSlots().length} من {slots.length} موعد
+                      عرض {getFilteredSlots().all.length} من {slots.length} موعد
                     </span>
                   </div>
                 </div>
@@ -872,7 +889,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {getFilteredSlots().length === 0 ? (
+                    {getFilteredSlots().all.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="no-results">
                           <div className="no-results-content">
@@ -887,7 +904,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         </td>
                       </tr>
                     ) : (
-                      getFilteredSlots().map((slot) => (
+                      getFilteredSlots().paginated.map((slot) => (
                       <tr key={slot._id}>
                         <td>{slot.roomId?.name || 'N/A'}</td>
                         <td>{new Date(slot.date).toLocaleDateString('ar-EG')}</td>
@@ -930,6 +947,29 @@ function AdminDashboard({ setIsAuthenticated }) {
                   </tbody>
                 </table>
               </div>
+
+              {/* Slots Pagination */}
+              {getFilteredSlots().totalPages > 1 && (
+                <div className="pagination">
+                  <button
+                    className="pagination-btn"
+                    onClick={() => setSlotsCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={slotsCurrentPage === 1}
+                  >
+                    السابق
+                  </button>
+                  <span className="pagination-info">
+                    صفحة {slotsCurrentPage} من {getFilteredSlots().totalPages}
+                  </span>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => setSlotsCurrentPage(prev => Math.min(prev + 1, getFilteredSlots().totalPages))}
+                    disabled={slotsCurrentPage === getFilteredSlots().totalPages}
+                  >
+                    التالي
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -975,6 +1015,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         <p><strong>الوقت:</strong> {formatTimeRange(booking.startTime, booking.endTime)}</p>
                         <p><strong>الخدمة:</strong> {booking.serviceName}</p>
                         <p><strong>الخادم:</strong> {booking.providerName}</p>
+                        <p><strong>📱 رقم الهاتف:</strong> {booking.phoneNumber || 'غير متوفر'}</p>
                       </div>
                       <div className="booking-actions">
                         <button
@@ -999,7 +1040,12 @@ function AdminDashboard({ setIsAuthenticated }) {
                 <h2 className="section-title">سجل الحجوزات</h2>
               </div>
               <div className="bookings-history">
-                {bookings.filter(b => b.status !== 'pending').map((booking) => (
+                {(() => {
+                  const nonPendingBookings = bookings.filter(b => b.status !== 'pending');
+                  const indexOfLastBooking = bookingsCurrentPage * bookingsPerPage;
+                  const indexOfFirstBooking = indexOfLastBooking - bookingsPerPage;
+                  const currentBookings = nonPendingBookings.slice(indexOfFirstBooking, indexOfLastBooking);
+                  return currentBookings.map((booking) => (
                   <div key={booking._id} className={`booking-card ${booking.status}`}>
                     <div className="booking-header">
                       <h4>{booking.userName}</h4>
@@ -1026,6 +1072,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                       <p><strong>المكان:</strong> {booking.roomId?.name}</p>
                       <p><strong>التاريخ:</strong> {new Date(booking.date).toLocaleDateString('ar-EG')}</p>
                       <p><strong>الوقت:</strong> {formatTimeRange(booking.startTime, booking.endTime)}</p>
+                      <p><strong>📱 رقم الهاتف:</strong> {booking.phoneNumber || 'غير متوفر'}</p>
                     </div>
                     <div className="booking-actions">
                       <button
@@ -1037,8 +1084,36 @@ function AdminDashboard({ setIsAuthenticated }) {
                       </button>
                     </div>
                   </div>
-                ))}
+                  ));
+                })()}
               </div>
+
+              {/* Bookings Pagination */}
+              {(() => {
+                const nonPendingBookings = bookings.filter(b => b.status !== 'pending');
+                const totalPages = Math.ceil(nonPendingBookings.length / bookingsPerPage);
+                return totalPages > 1 ? (
+                  <div className="pagination">
+                    <button
+                      className="pagination-btn"
+                      onClick={() => setBookingsCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={bookingsCurrentPage === 1}
+                    >
+                      السابق
+                    </button>
+                    <span className="pagination-info">
+                      صفحة {bookingsCurrentPage} من {totalPages}
+                    </span>
+                    <button
+                      className="pagination-btn"
+                      onClick={() => setBookingsCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={bookingsCurrentPage === totalPages}
+                    >
+                      التالي
+                    </button>
+                  </div>
+                ) : null;
+              })()}
             </div>
           )}
         </div>

@@ -39,6 +39,18 @@ const bookingSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  phoneNumber: {
+    type: String,
+    required: true,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        // Must be 11 digits and start with 010, 011, 012, or 015
+        return /^(010|011|012|015)\d{8}$/.test(v);
+      },
+      message: props => `${props.value} ليس رقم هاتف صحيح! يجب أن يبدأ بـ 010, 011, 012, أو 015 ويكون 11 رقم`
+    }
+  },
   date: {
     type: Date,
     required: true

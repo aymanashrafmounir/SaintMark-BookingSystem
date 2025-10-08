@@ -49,6 +49,7 @@ function UserPortal() {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [userName, setUserName] = useState('');
   const [serviceName, setServiceName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Helper function to get array of dates between start and end
@@ -199,6 +200,16 @@ function UserPortal() {
       toast.error('يرجى إدخال اسم الخدمة');
       return;
     }
+    if (!phoneNumber.trim()) {
+      toast.error('يرجى إدخال رقم الهاتف');
+      return;
+    }
+    
+    // Validate phone number
+    if (!/^(010|011|012|015)\d{8}$/.test(phoneNumber.trim())) {
+      toast.error('رقم الهاتف غير صحيح! يجب أن يبدأ بـ 010, 011, 012, أو 015 ويكون 11 رقم');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -210,6 +221,7 @@ function UserPortal() {
         endTime: selectedSlot.endTime,
         serviceName: serviceName.trim(),
         providerName: userName.trim(), // Provider Name = User's Full Name
+        phoneNumber: phoneNumber.trim(),
         date: selectedSlot.date
       });
 
@@ -217,6 +229,7 @@ function UserPortal() {
       setShowBookingModal(false);
       setUserName('');
       setServiceName('');
+      setPhoneNumber('');
       setSelectedSlot(null);
       
       // Reload slots based on current selection
@@ -498,6 +511,24 @@ function UserPortal() {
                   placeholder="مثال: فريق سان بول , اسرة اولي ثانوي فصل القديس بولس"
                   required
                 />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  📱 رقم الهاتف
+                </label>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="01xxxxxxxxx (يبدأ بـ 010, 011, 012, أو 015)"
+                  pattern="^(010|011|012|015)\d{8}$"
+                  maxLength="11"
+                  required
+                />
+                <small style={{ color: '#6c757d', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
+                  يجب أن يكون 11 رقم ويبدأ بـ 010, 011, 012, أو 015
+                </small>
               </div>
 
               <div className="info-box">
