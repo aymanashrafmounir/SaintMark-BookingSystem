@@ -62,11 +62,11 @@ function UserPortal() {
   const loadRooms = useCallback(async () => {
     setLoading(true);
     
-    // Add timeout to prevent infinite loading
+    // Increase timeout for Render cold start (can take 30-60 seconds)
     const loadingTimeout = setTimeout(() => {
       setLoading(false);
-      toast.error('الاتصال بالخادم بطيء. يرجى المحاولة مرة أخرى.');
-    }, 15000); // 15 seconds timeout
+      toast.error('انتهت مهلة الاتصال. الخادم قد يكون في وضع السكون. حاول مرة أخرى.');
+    }, 45000); // 45 seconds timeout for cold start
     
     try {
       const response = await roomAPI.getAll();
@@ -78,7 +78,8 @@ function UserPortal() {
     } catch (error) {
       clearTimeout(loadingTimeout);
       console.error('Load rooms error:', error);
-      toast.error('فشل تحميل الأماكن. تحقق من اتصال الإنترنت.');
+      const errorMessage = error.response?.data?.error || error.message || 'خطأ في الاتصال';
+      toast.error(`فشل تحميل الأماكن: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -238,11 +239,14 @@ function UserPortal() {
     return (
       <div className="user-portal">
         <div className="spinner"></div>
-        <p style={{ textAlign: 'center', marginTop: '20px', color: '#666' }}>
-          جاري التحميل من الخادم...
+        <p style={{ textAlign: 'center', marginTop: '20px', color: '#666', fontSize: '1.1rem' }}>
+          جاري الاتصال بالخادم...
         </p>
-        <p style={{ textAlign: 'center', fontSize: '0.9rem', color: '#999' }}>
-          قد يستغرق الأمر بضع ثوانٍ في المرة الأولى
+        <p style={{ textAlign: 'center', fontSize: '0.95rem', color: '#888', marginTop: '10px' }}>
+          ⏳ قد يستغرق الأمر حتى دقيقة في المرة الأولى
+        </p>
+        <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#aaa', marginTop: '5px' }}>
+          (الخادم المجاني يحتاج وقت للتشغيل)
         </p>
       </div>
     );
