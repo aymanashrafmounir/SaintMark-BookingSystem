@@ -10,7 +10,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const bookings = await Booking.find()
       .populate('roomId', 'name')
       .populate('slotId')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: 1 });
     
     res.json(bookings);
   } catch (error) {
@@ -25,7 +25,7 @@ router.get('/pending', authMiddleware, async (req, res) => {
     const bookings = await Booking.find({ status: 'pending' })
       .populate('roomId', 'name')
       .populate('slotId')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: 1 });
     
     res.json(bookings);
   } catch (error) {

@@ -173,7 +173,7 @@ function AdminDashboard({ setIsAuthenticated }) {
     } finally {
       setLoading(false);
     }
-  }, [loadRooms, loadSlots, loadBookings]);
+  }, [loadRooms, loadRoomGroups, loadSlots, loadBookings]);
 
   useEffect(() => {
     loadData();
