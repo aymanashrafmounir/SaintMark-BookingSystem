@@ -30,8 +30,8 @@ const formatTime12Hour = (time24) => {
 const formatTimeRange = (startTime, endTime) => {
   const start = formatTime12Hour(startTime);
   const end = formatTime12Hour(endTime);
-  // Use Unicode RTL mark to fix Arabic time display
-  return `${start}\u200F - \u200F${end}`; // Add RTL marks between elements
+  // Use "حتى" instead of dash to avoid RTL issues
+  return `${start} حتى ${end}`;
 };
 
 function AdminDashboard({ setIsAuthenticated }) {
