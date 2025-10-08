@@ -70,8 +70,12 @@ function AdminDashboard({ setIsAuthenticated }) {
   
   const [makeAvailable, setMakeAvailable] = useState(true);
   const [bulkMode, setBulkMode] = useState(false);
+  const [dateRangeMode, setDateRangeMode] = useState(false);
   const [selectedRooms, setSelectedRooms] = useState([]);
   const [multipleSlots, setMultipleSlots] = useState([{ startTime: '', endTime: '', date: '' }]);
+  const [dateRangeStart, setDateRangeStart] = useState('');
+  const [dateRangeEnd, setDateRangeEnd] = useState('');
+  const [timeSlots, setTimeSlots] = useState([{ startTime: '', endTime: '' }]);
   
   // Slot filters
   const [slotFilters, setSlotFilters] = useState({
@@ -234,6 +238,54 @@ function AdminDashboard({ setIsAuthenticated }) {
       if (editingSlot) {
         await slotAPI.update(editingSlot._id, baseSlotData);
         toast.success('تم تحديث الموعد بنجاح');
+      } else if (dateRangeMode) {
+        // Date Range Mode: Create slots for every day in date range
+        const roomIds = selectedRooms.length > 0 ? selectedRooms : [slotForm.roomId];
+        
+        if (roomIds.length === 0 || !roomIds[0]) {
+          toast.error('يجب اختيار مكان واحد على الأقل');
+          return;
+        }
+
+        if (!dateRangeStart || !dateRangeEnd) {
+          toast.error('يجب تحديد تاريخ البداية والنهاية');
+          return;
+        }
+
+        // Validate time slots
+        const validTimeSlots = timeSlots.filter(slot => slot.startTime && slot.endTime);
+        
+        if (validTimeSlots.length === 0) {
+          toast.error('يجب إضافة موعد واحد صحيح على الأقل');
+          return;
+        }
+
+        // Generate all dates in range
+        const startDate = new Date(dateRangeStart);
+        const endDate = new Date(dateRangeEnd);
+        const dates = [];
+        
+        for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+          dates.push(new Date(date).toISOString().split('T')[0]);
+        }
+
+        // Create slots for each date × each time slot
+        const slotsData = [];
+        dates.forEach(date => {
+          validTimeSlots.forEach(timeSlot => {
+            slotsData.push({
+              startTime: timeSlot.startTime,
+              endTime: timeSlot.endTime,
+              date: date,
+              serviceName: makeAvailable ? '' : slotForm.serviceName,
+              providerName: makeAvailable ? '' : slotForm.providerName,
+              type: 'single'
+            });
+          });
+        });
+
+        await slotAPI.bulkCreate({ roomIds, slots: slotsData });
+        toast.success(`تم إنشاء ${roomIds.length * slotsData.length} موعد بنجاح! (${dates.length} يوم × ${validTimeSlots.length} موعد × ${roomIds.length} مكان)`);
       } else if (bulkMode) {
         // Bulk mode: multiple rooms and/or multiple slots
         const roomIds = selectedRooms.length > 0 ? selectedRooms : [slotForm.roomId];
@@ -332,8 +384,12 @@ function AdminDashboard({ setIsAuthenticated }) {
       setEditingSlot(null);
       setMakeAvailable(true);
       setBulkMode(false);
+      setDateRangeMode(false);
       setSelectedRooms([]);
       setMultipleSlots([{ startTime: '', endTime: '', date: '' }]);
+      setDateRangeStart('');
+      setDateRangeEnd('');
+      setTimeSlots([{ startTime: '', endTime: '' }]);
       loadSlots();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Operation failed');
@@ -360,6 +416,20 @@ function AdminDashboard({ setIsAuthenticated }) {
     const updated = [...multipleSlots];
     updated[index][field] = value;
     setMultipleSlots(updated);
+  };
+
+  const addTimeSlot = () => {
+    setTimeSlots([...timeSlots, { startTime: '', endTime: '' }]);
+  };
+
+  const removeTimeSlot = (index) => {
+    setTimeSlots(timeSlots.filter((_, i) => i !== index));
+  };
+
+  const updateTimeSlot = (index, field, value) => {
+    const updated = [...timeSlots];
+    updated[index][field] = value;
+    setTimeSlots(updated);
   };
 
   const handleDeleteSlot = async (slot) => {
@@ -670,8 +740,12 @@ function AdminDashboard({ setIsAuthenticated }) {
                     setEditingSlot(null);
                     setMakeAvailable(true);
                     setBulkMode(false);
+                    setDateRangeMode(false);
                     setSelectedRooms([]);
                     setMultipleSlots([{ startTime: '', endTime: '', date: '' }]);
+                    setDateRangeStart('');
+                    setDateRangeEnd('');
+                    setTimeSlots([{ startTime: '', endTime: '' }]);
                     setSlotForm({
                       roomId: '',
                       startTime: '',
@@ -1023,22 +1097,47 @@ function AdminDashboard({ setIsAuthenticated }) {
             <form onSubmit={handleCreateSlot} className="modal-form">
               
               {!editingSlot && (
-                <div className="form-group bulk-toggle">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={bulkMode}
-                      onChange={(e) => {
-                        setBulkMode(e.target.checked);
-                        if (!e.target.checked) {
-                          setSelectedRooms([]);
-                          setMultipleSlots([{ startTime: '', endTime: '', date: '' }]);
-                        }
-                      }}
-                    />
-                    <span>🔄 وضع الإضافة المتعددة (اختر أكثر من مكان و/أو موعد)</span>
-                  </label>
-                </div>
+                <>
+                  <div className="form-group bulk-toggle">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={bulkMode}
+                        onChange={(e) => {
+                          setBulkMode(e.target.checked);
+                          if (e.target.checked) {
+                            setDateRangeMode(false);
+                          } else {
+                            setSelectedRooms([]);
+                            setMultipleSlots([{ startTime: '', endTime: '', date: '' }]);
+                          }
+                        }}
+                      />
+                      <span>🔄 وضع الإضافة المتعددة (اختر أكثر من مكان و/أو موعد)</span>
+                    </label>
+                  </div>
+
+                  <div className="form-group bulk-toggle" style={{marginTop: '0.5rem'}}>
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={dateRangeMode}
+                        onChange={(e) => {
+                          setDateRangeMode(e.target.checked);
+                          if (e.target.checked) {
+                            setBulkMode(false);
+                          } else {
+                            setSelectedRooms([]);
+                            setDateRangeStart('');
+                            setDateRangeEnd('');
+                            setTimeSlots([{ startTime: '', endTime: '' }]);
+                          }
+                        }}
+                      />
+                      <span>📅 وضع الفترة الزمنية (احجز فترة كاملة - كل يوم)</span>
+                    </label>
+                  </div>
+                </>
               )}
 
               {bulkMode && !editingSlot ? (
@@ -1110,6 +1209,97 @@ function AdminDashboard({ setIsAuthenticated }) {
                     </div>
                   </div>
                 </>
+              ) : dateRangeMode && !editingSlot ? (
+                <>
+                  <div className="form-group">
+                    <label>اختيار الأماكن (اختر مكان أو أكثر)</label>
+                    <div className="rooms-checkboxes">
+                      {rooms.filter(r => r.isEnabled).map((room) => (
+                        <label key={room._id} className="checkbox-label room-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={selectedRooms.includes(room._id)}
+                            onChange={() => toggleRoomSelection(room._id)}
+                          />
+                          <span>{room.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {selectedRooms.length > 0 && (
+                      <div className="selected-count">
+                        ✓ تم اختيار {selectedRooms.length} مكان
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>تاريخ البداية</label>
+                      <input
+                        type="date"
+                        value={dateRangeStart}
+                        onChange={(e) => setDateRangeStart(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>تاريخ النهاية</label>
+                      <input
+                        type="date"
+                        value={dateRangeEnd}
+                        onChange={(e) => setDateRangeEnd(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {dateRangeStart && dateRangeEnd && (
+                    <div className="date-range-preview">
+                      <strong>📅 عدد الأيام: </strong>
+                      {Math.ceil((new Date(dateRangeEnd) - new Date(dateRangeStart)) / (1000 * 60 * 60 * 24)) + 1} يوم
+                    </div>
+                  )}
+
+                  <div className="form-group">
+                    <label>المواعيد اليومية (نفس الأوقات كل يوم)</label>
+                    <div className="multiple-slots">
+                      {timeSlots.map((timeSlot, index) => (
+                        <div key={index} className="slot-row">
+                          <input
+                            type="time"
+                            value={timeSlot.startTime}
+                            onChange={(e) => updateTimeSlot(index, 'startTime', e.target.value)}
+                            placeholder="من"
+                            required
+                          />
+                          <input
+                            type="time"
+                            value={timeSlot.endTime}
+                            onChange={(e) => updateTimeSlot(index, 'endTime', e.target.value)}
+                            placeholder="إلى"
+                            required
+                          />
+                          {timeSlots.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn-remove-slot"
+                              onClick={() => removeTimeSlot(index)}
+                            >
+                              <X size={16} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn-add-slot"
+                        onClick={addTimeSlot}
+                      >
+                        <Plus size={16} /> إضافة موعد آخر
+                      </button>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="form-group">
                   <label>المكان</label>
@@ -1125,7 +1315,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                   </select>
                 </div>
               )}
-              {!bulkMode && (
+              {!bulkMode && !dateRangeMode && (
                 <>
                   <div className="form-row">
                     <div className="form-group">
