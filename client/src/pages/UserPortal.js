@@ -352,13 +352,40 @@ function UserPortal() {
   if (loading) {
     return (
       <div className="user-portal">
-        <div className="spinner"></div>
-        <p style={{ textAlign: 'center', marginTop: '20px', color: '#666', fontSize: '1.1rem' }}>
-          جاري التحميل...
-        </p>
-        <p style={{ textAlign: 'center', fontSize: '0.9rem', color: '#999', marginTop: '8px' }}>
-          يرجى الانتظار
-        </p>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '60vh',
+          gap: '1rem'
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid #e8eaed',
+            borderTop: '3px solid #1a73e8',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <p style={{ 
+            textAlign: 'center', 
+            color: '#5f6368', 
+            fontSize: '1rem',
+            fontWeight: '400',
+            margin: 0
+          }}>
+            جاري التحميل...
+          </p>
+          <p style={{ 
+            textAlign: 'center', 
+            fontSize: '0.875rem', 
+            color: '#9aa0a6', 
+            margin: 0
+          }}>
+            يرجى الانتظار
+          </p>
+        </div>
       </div>
     );
   }
@@ -584,30 +611,30 @@ function UserPortal() {
                       onClick={loadMoreSlots}
                       disabled={loadingSlots}
                       style={{
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        background: '#1a73e8',
                         color: 'white',
                         border: 'none',
-                        padding: '0.875rem 2rem',
-                        borderRadius: '10px',
-                        fontSize: '1rem',
-                        fontWeight: '600',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
                         cursor: loadingSlots ? 'not-allowed' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
-                        transition: 'all 0.3s ease',
+                        boxShadow: '0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15)',
+                        transition: 'all 0.2s ease',
                         opacity: loadingSlots ? 0.6 : 1
                       }}
                       onMouseEnter={(e) => {
                         if (!loadingSlots) {
-                          e.target.style.transform = 'translateY(-2px)';
-                          e.target.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.4)';
+                          e.target.style.background = '#1557b0';
+                          e.target.style.boxShadow = '0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15)';
                         }
                       }}
                       onMouseLeave={(e) => {
-                        e.target.style.transform = 'translateY(0)';
-                        e.target.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.3)';
+                        e.target.style.background = '#1a73e8';
+                        e.target.style.boxShadow = '0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15)';
                       }}
                     >
                       {loadingSlots ? (
@@ -628,11 +655,11 @@ function UserPortal() {
                 {loadingSlots && (
                   <div style={{ 
                     textAlign: 'center', 
-                    padding: '2rem',
-                    color: '#667eea',
-                    fontSize: '1rem'
+                    padding: '1.5rem',
+                    color: '#5f6368',
+                    fontSize: '0.875rem'
                   }}>
-                    <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: '0.5rem' }} />
+                    <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', marginBottom: '0.5rem' }} />
                     <p>جاري تحميل المزيد من الأوقات...</p>
                   </div>
                 )}
