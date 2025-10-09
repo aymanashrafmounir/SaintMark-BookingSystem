@@ -812,6 +812,20 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   }, [sortConfig]);
 
+  // Helper function to normalize Arabic text for better sorting
+  const normalizeArabicText = (text) => {
+    if (!text) return '';
+    
+    // Remove diacritics and normalize Arabic characters
+    return text
+      .replace(/[\u064B-\u0652\u0670\u0640]/g, '') // Remove diacritics
+      .replace(/[أإآ]/g, 'ا') // Normalize alef variations
+      .replace(/[ة]/g, 'ه') // Normalize ta marbuta
+      .replace(/[ي]/g, 'ي') // Normalize yeh
+      .toLowerCase()
+      .trim();
+  };
+
   // Sort slots data with improved data type handling
   const sortedSlots = useMemo(() => {
     if (!sortConfig.key) return slots;
@@ -826,17 +840,51 @@ function AdminDashboard({ setIsAuthenticated }) {
 
       // Handle different data types
       if (sortConfig.key === 'date') {
-        // Date sorting: newest first (desc) or oldest first (asc)
-        aValue = new Date(aValue);
-        bValue = new Date(bValue);
+        // Date sorting: handle different date formats
+        try {
+          // Handle different date formats
+          let dateA = aValue;
+          let dateB = bValue;
+          
+          // If date is in DD/MM/YYYY format, convert to YYYY-MM-DD
+          if (typeof dateA === 'string' && dateA.includes('/')) {
+            const partsA = dateA.split('/');
+            if (partsA.length === 3) {
+              dateA = `${partsA[2]}-${partsA[1].padStart(2, '0')}-${partsA[0].padStart(2, '0')}`;
+            }
+          }
+          
+          if (typeof dateB === 'string' && dateB.includes('/')) {
+            const partsB = dateB.split('/');
+            if (partsB.length === 3) {
+              dateB = `${partsB[2]}-${partsB[1].padStart(2, '0')}-${partsB[0].padStart(2, '0')}`;
+            }
+          }
+          
+          // Try to parse as Date object
+          aValue = new Date(dateA);
+          bValue = new Date(dateB);
+          
+          // Check if dates are valid
+          if (isNaN(aValue.getTime())) aValue = new Date(0);
+          if (isNaN(bValue.getTime())) bValue = new Date(0);
+        } catch (error) {
+          // Fallback to string comparison if date parsing fails
+          aValue = aValue.toString();
+          bValue = bValue.toString();
+        }
       } else if (sortConfig.key === 'startTime' || sortConfig.key === 'endTime') {
         // Time sorting: convert "HH:MM" to comparable format
         aValue = aValue.replace(':', '');
         bValue = bValue.replace(':', '');
-      } else if (sortConfig.key === 'roomName' || sortConfig.key === 'serviceName' || sortConfig.key === 'providerName') {
-        // Alphabetical sorting for text fields
-        aValue = aValue.toLowerCase();
-        bValue = bValue.toLowerCase();
+      } else if (sortConfig.key === 'roomName') {
+        // Special handling for room names - remove common prefixes and normalize Arabic
+        aValue = normalizeArabicText(aValue).replace(/^(قاعة|غرفة|مكتب|صالة)\s*/i, '');
+        bValue = normalizeArabicText(bValue).replace(/^(قاعة|غرفة|مكتب|صالة)\s*/i, '');
+      } else if (sortConfig.key === 'serviceName' || sortConfig.key === 'providerName') {
+        // Alphabetical sorting for text fields with Arabic normalization
+        aValue = normalizeArabicText(aValue);
+        bValue = normalizeArabicText(bValue);
       } else if (sortConfig.key === 'type' || sortConfig.key === 'status') {
         // Status/Type sorting: keep original case for consistency
         aValue = aValue.toString();
