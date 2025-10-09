@@ -231,6 +231,8 @@ function UserPortal() {
     if (startDate && endDate && rooms.length > 0) {
       setCurrentSlotsPage(1);
       setSlots([]); // Clear previous slots
+      // Reset pagination total immediately when filters change
+      setSlotsPagination(prev => ({ ...prev, total: 0 }));
       
       if (selectedRoom === 'all') {
         loadAllSlotsForDateRange(startDate, endDate, false, 1);
@@ -333,6 +335,11 @@ function UserPortal() {
   };
 
   const handleRefresh = () => {
+    // Reset counter immediately when refreshing
+    setSlotsPagination(prev => ({ ...prev, total: 0 }));
+    setSlots([]);
+    setCurrentSlotsPage(1);
+    
     if (selectedRoom === 'all') {
       loadAllSlotsForDateRange(startDate, endDate);
       toast.info('تم تحديث الأوقات');
@@ -526,7 +533,7 @@ function UserPortal() {
                     : `الأوقات المتاحة في ${selectedRoom?.name}`}
                 </h2>
                 <span className="slot-count">
-                  {slotsPagination.total} متاح
+                  {loadingSlots && slotsPagination.total === 0 ? 'جاري التحميل...' : `${slotsPagination.total} متاح`}
                 </span>
               </div>
 
