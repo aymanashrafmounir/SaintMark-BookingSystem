@@ -30,6 +30,69 @@ router.get('/room/:roomId', async (req, res) => {
   }
 });
 
+// Get slots with pagination and filtering (public - for users)
+router.get('/public', async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      roomId, 
+      roomIds, // comma-separated room IDs for group filtering
+      dateRangeStart,
+      dateRangeEnd
+    } = req.query;
+
+    // Build filter query
+    const filter = {};
+    
+    if (roomIds) {
+      // Handle multiple room IDs (for group filtering)
+      const roomIdArray = roomIds.split(',').map(id => id.trim());
+      filter.roomId = { $in: roomIdArray };
+    } else if (roomId) {
+      filter.roomId = roomId;
+    }
+    
+    // Date range filtering
+    if (dateRangeStart && dateRangeEnd) {
+      const startDate = new Date(dateRangeStart);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      filter.date = { $gte: startDate, $lte: endDate };
+    }
+
+    // Calculate pagination
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // Execute query with pagination
+    const slots = await Slot.find(filter)
+      .populate('roomId', 'name isEnabled')
+      .sort({ date: 1, startTime: 1 })
+      .skip(skip)
+      .limit(limitNumber)
+      .lean();
+
+    // Get total count for pagination
+    const totalCount = await Slot.countDocuments(filter);
+    
+    res.json({
+      slots,
+      pagination: {
+        total: totalCount,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(totalCount / limitNumber)
+      }
+    });
+  } catch (error) {
+    console.error('Get public slots error:', error);
+    res.status(500).json({ error: 'Failed to fetch slots' });
+  }
+});
+
 // Get all slots (admin) with pagination and filtering
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -37,6 +100,7 @@ router.get('/', authMiddleware, async (req, res) => {
       page = 1, 
       limit = 50, 
       roomId, 
+      roomIds, // comma-separated room IDs for group filtering
       serviceName, 
       providerName, 
       type, 
@@ -51,7 +115,13 @@ router.get('/', authMiddleware, async (req, res) => {
     // Build filter query
     const filter = {};
     
-    if (roomId) filter.roomId = roomId;
+    if (roomIds) {
+      // Handle multiple room IDs (for group filtering)
+      const roomIdArray = roomIds.split(',').map(id => id.trim());
+      filter.roomId = { $in: roomIdArray };
+    } else if (roomId) {
+      filter.roomId = roomId;
+    }
     if (type) filter.type = type;
     if (startTime) filter.startTime = startTime;
     if (endTime) filter.endTime = endTime;

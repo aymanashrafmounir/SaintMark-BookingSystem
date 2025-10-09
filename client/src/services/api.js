@@ -47,6 +47,7 @@ export const roomGroupAPI = {
 // Slot APIs
 export const slotAPI = {
   getAll: (params = {}) => api.get('/slots', { params }),
+  getPublic: (params = {}) => api.get('/slots/public', { params }),
   getByRoom: (roomId, date) => {
     const params = date ? { date } : {};
     return api.get(`/slots/room/${roomId}`, { params });
