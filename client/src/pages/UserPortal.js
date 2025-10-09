@@ -341,7 +341,7 @@ function UserPortal() {
         }
       }
     });
-  }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
+  }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot, showAdvancedFilter, loadSlotsWithAdvancedFilter]);
 
   // Load initial slots (first page only)
   useEffect(() => {
