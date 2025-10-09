@@ -174,7 +174,8 @@ function AdminDashboard({ setIsAuthenticated }) {
       console.error('Load slots error:', error);
       toast.error('فشل تحميل المواعيد');
     }
-  }, [slotsCurrentPage, slotFilters, slotsPerPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotsCurrentPage, slotsPerPage]);
 
   const loadBookings = useCallback(async (page = bookingsCurrentPage) => {
     try {
@@ -797,7 +798,8 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
     setSlotsCurrentPage(1); // Reset to page 1 when filters change
     loadSlots(1, slotFilters);
-  }, [slotFilters, loadSlots, hasActiveFilters, slots.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadSlots, hasActiveFilters, slots.length]);
 
   const clearSlotFilters = () => {
     const emptyFilters = {
@@ -896,14 +898,6 @@ function AdminDashboard({ setIsAuthenticated }) {
   const handleBulkAssignFiltered = () => {
     if (slotsPagination.total === 0) {
       toast.error('لا توجد مواعيد في الفلترة الحالية');
-      return;
-    }
-    
-    const confirmMessage = hasActiveFilters() 
-      ? `هل تريد تطبيق الإجراء على ${slotsPagination.total} موعد (الفلترة الحالية)؟`
-      : `هل تريد تطبيق الإجراء على جميع المواعيد (${slotsPagination.total} موعد)؟`;
-    
-    if (!window.confirm(confirmMessage)) {
       return;
     }
     

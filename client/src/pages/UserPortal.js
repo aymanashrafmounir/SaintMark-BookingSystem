@@ -53,23 +53,15 @@ function UserPortal() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [currentDateIndex, setCurrentDateIndex] = useState(0);
-  const DATES_PER_LOAD = 10; // Load 10 days at a time
-
-  // Helper function to get array of dates between start and end
-  const getDateRange = useCallback((start, end) => {
-    const dates = [];
-    const startDateObj = new Date(start);
-    const endDateObj = new Date(end);
-    
-    let currentDate = new Date(startDateObj);
-    while (currentDate <= endDateObj) {
-      dates.push(currentDate.toISOString().split('T')[0]);
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    return dates;
-  }, []);
+  
+  // Pagination for slots
+  const [slotsPagination, setSlotsPagination] = useState({ 
+    total: 0, 
+    page: 1, 
+    limit: 10, 
+    totalPages: 0 
+  });
+  const [currentSlotsPage, setCurrentSlotsPage] = useState(1);
 
   // Get rooms that are NOT in any group
   const getRoomsNotInGroups = useCallback(() => {
@@ -115,59 +107,57 @@ function UserPortal() {
     }
   }, []);
 
-  const loadSlotsForDateRange = useCallback(async (roomId, startDate, endDate, append = false) => {
+  const loadSlotsForDateRange = useCallback(async (roomId, startDate, endDate, append = false, page = 1) => {
     try {
       setLoadingSlots(true);
-      const dates = getDateRange(startDate, endDate);
-      const slotsPromises = dates.map(date => slotAPI.getByRoom(roomId, date));
-      const slotsResponses = await Promise.all(slotsPromises);
       
-      // Combine all slots from all dates
-      const newSlots = slotsResponses.flatMap(response => response.data);
+      // Use server-side pagination
+      const params = {
+        roomId,
+        dateRangeStart: startDate,
+        dateRangeEnd: endDate,
+        page,
+        limit: 10
+      };
+      
+      const response = await slotAPI.getAll(params);
+      const newSlots = response.data.slots;
+      
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
+      setSlotsPagination(response.data.pagination);
     } catch (error) {
       toast.error('فشل تحميل الأوقات');
     } finally {
       setLoadingSlots(false);
     }
-  }, [getDateRange]);
+  }, []);
 
-  const loadAllSlotsForDateRange = useCallback(async (startDate, endDate, append = false) => {
+  const loadAllSlotsForDateRange = useCallback(async (startDate, endDate, append = false, page = 1) => {
     try {
-      if (rooms.length === 0) {
-        console.log('No rooms available yet');
-        return;
-      }
-      
       setLoadingSlots(true);
-      const dates = getDateRange(startDate, endDate);
-      const allPromises = [];
       
-      // Load slots for all rooms and all dates
-      rooms.forEach(room => {
-        dates.forEach(date => {
-          allPromises.push(slotAPI.getByRoom(room._id, date));
-        });
-      });
+      // Use server-side pagination for all slots
+      const params = {
+        dateRangeStart: startDate,
+        dateRangeEnd: endDate,
+        page,
+        limit: 10
+      };
       
-      if (allPromises.length === 0) {
-        setSlots([]);
-        setLoadingSlots(false);
-        return;
-      }
+      const response = await slotAPI.getAll(params);
+      const newSlots = response.data.slots;
       
-      const allResponses = await Promise.all(allPromises);
-      const newSlots = allResponses.flatMap(response => response.data);
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
+      setSlotsPagination(response.data.pagination);
     } catch (error) {
       console.error('Load all slots error:', error);
       toast.error('فشل تحميل الأوقات');
     } finally {
       setLoadingSlots(false);
     }
-  }, [rooms, getDateRange]);
+  }, []);
 
-  const loadSlotsForGroup = useCallback(async (group, startDate, endDate, append = false) => {
+  const loadSlotsForGroup = useCallback(async (group, startDate, endDate, append = false, page = 1) => {
     try {
       if (!group.rooms || group.rooms.length === 0) {
         setSlots([]);
@@ -175,32 +165,29 @@ function UserPortal() {
       }
       
       setLoadingSlots(true);
-      const dates = getDateRange(startDate, endDate);
-      const allPromises = [];
       
-      // Load slots for all rooms in the group
-      group.rooms.forEach(room => {
-        dates.forEach(date => {
-          allPromises.push(slotAPI.getByRoom(room._id, date));
-        });
-      });
+      // Use server-side pagination for group slots
+      const roomIds = group.rooms.map(room => room._id);
+      const params = {
+        roomIds: roomIds.join(','),
+        dateRangeStart: startDate,
+        dateRangeEnd: endDate,
+        page,
+        limit: 10
+      };
       
-      if (allPromises.length === 0) {
-        setSlots([]);
-        setLoadingSlots(false);
-        return;
-      }
+      const response = await slotAPI.getAll(params);
+      const newSlots = response.data.slots;
       
-      const allResponses = await Promise.all(allPromises);
-      const newSlots = allResponses.flatMap(response => response.data);
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
+      setSlotsPagination(response.data.pagination);
     } catch (error) {
       console.error('Load group slots error:', error);
       toast.error('فشل تحميل الأوقات');
     } finally {
       setLoadingSlots(false);
     }
-  }, [getDateRange]);
+  }, []);
 
   useEffect(() => {
     loadRooms();
@@ -239,55 +226,45 @@ function UserPortal() {
     });
   }, [loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup, selectedRoom, startDate, endDate]);
 
-  // Load initial slots (limited to DATES_PER_LOAD days)
+  // Load initial slots (first page only)
   useEffect(() => {
     if (startDate && endDate && rooms.length > 0) {
-      setCurrentDateIndex(0);
+      setCurrentSlotsPage(1);
       setSlots([]); // Clear previous slots
       
-      // Calculate initial end date (limit to DATES_PER_LOAD days)
-      const dates = getDateRange(startDate, endDate);
-      const initialEndDate = dates[Math.min(DATES_PER_LOAD - 1, dates.length - 1)];
-      
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, initialEndDate, false);
+        loadAllSlotsForDateRange(startDate, endDate, false, 1);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, startDate, initialEndDate, false);
+        loadSlotsForGroup(selectedRoom, startDate, endDate, false, 1);
       } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, startDate, initialEndDate, false);
+        loadSlotsForDateRange(selectedRoom._id, startDate, endDate, false, 1);
       }
     }
-  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup, getDateRange]);
+  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup]);
 
-  // Function to load more slots
+  // Function to load more slots (pagination)
   const loadMoreSlots = useCallback(() => {
-    const allDates = getDateRange(startDate, endDate);
-    const nextStartIndex = currentDateIndex + DATES_PER_LOAD;
-    const nextEndIndex = Math.min(nextStartIndex + DATES_PER_LOAD - 1, allDates.length - 1);
+    const nextPage = currentSlotsPage + 1;
     
-    if (nextStartIndex >= allDates.length) {
+    if (nextPage > slotsPagination.totalPages) {
       toast.info('تم تحميل جميع الأوقات المتاحة');
       return;
     }
     
-    const nextStartDate = allDates[nextStartIndex];
-    const nextEndDate = allDates[nextEndIndex];
-    
     if (selectedRoom === 'all') {
-      loadAllSlotsForDateRange(nextStartDate, nextEndDate, true);
+      loadAllSlotsForDateRange(startDate, endDate, true, nextPage);
     } else if (selectedRoom?.isGroup) {
-      loadSlotsForGroup(selectedRoom, nextStartDate, nextEndDate, true);
+      loadSlotsForGroup(selectedRoom, startDate, endDate, true, nextPage);
     } else if (selectedRoom) {
-      loadSlotsForDateRange(selectedRoom._id, nextStartDate, nextEndDate, true);
+      loadSlotsForDateRange(selectedRoom._id, startDate, endDate, true, nextPage);
     }
     
-    setCurrentDateIndex(nextStartIndex);
-  }, [currentDateIndex, startDate, endDate, selectedRoom, loadAllSlotsForDateRange, loadSlotsForGroup, loadSlotsForDateRange, getDateRange]);
+    setCurrentSlotsPage(nextPage);
+  }, [currentSlotsPage, slotsPagination.totalPages, startDate, endDate, selectedRoom, loadAllSlotsForDateRange, loadSlotsForGroup, loadSlotsForDateRange]);
 
   const hasMoreSlots = useCallback(() => {
-    const allDates = getDateRange(startDate, endDate);
-    return (currentDateIndex + DATES_PER_LOAD) < allDates.length;
-  }, [currentDateIndex, startDate, endDate, getDateRange]);
+    return currentSlotsPage < slotsPagination.totalPages;
+  }, [currentSlotsPage, slotsPagination.totalPages]);
 
   const handleBookSlot = (slot) => {
     if (slot.status === 'booked') {
