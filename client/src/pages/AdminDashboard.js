@@ -96,9 +96,7 @@ function AdminDashboard({ setIsAuthenticated }) {
     dateRangeStart: '',
     dateRangeEnd: '',
     daysOfWeek: [], // Array of selected days: 0 = Sunday, 1 = Monday, etc.
-    timeRanges: [], // Array of selected time ranges
-    startTime: '',
-    endTime: ''
+    timeRanges: [] // Array of selected time ranges
   });
 
   // Predefined time ranges for filtering
@@ -981,9 +979,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       dateRangeStart: '',
       dateRangeEnd: '',
       daysOfWeek: [],
-      timeRanges: [],
-      startTime: '',
-      endTime: ''
+      timeRanges: []
     };
     setSlotFilters(emptyFilters);
     setSlotsCurrentPage(1);
@@ -1593,29 +1589,6 @@ function AdminDashboard({ setIsAuthenticated }) {
                     </select>
                   </div>
 
-                  <div className="filter-item">
-                    <label>وقت البداية</label>
-                    <input
-                      type="time"
-                      value={slotFilters.startTime}
-                      onChange={(e) => {
-                        setSlotFilters({ ...slotFilters, startTime: e.target.value });
-                      }}
-                      placeholder="تصفية بوقت البداية"
-                    />
-                  </div>
-
-                  <div className="filter-item">
-                    <label>وقت النهاية</label>
-                    <input
-                      type="time"
-                      value={slotFilters.endTime}
-                      onChange={(e) => {
-                        setSlotFilters({ ...slotFilters, endTime: e.target.value });
-                      }}
-                      placeholder="تصفية بوقت النهاية"
-                    />
-                  </div>
 
                   <div className="filter-item">
                     <label>اسم الخدمة</label>
