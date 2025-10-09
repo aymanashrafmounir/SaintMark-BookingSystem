@@ -545,79 +545,173 @@ function UserPortal() {
                 </div>
               ) : (
                 <>
-                <div className="slots-grid">
-                  {slots.map((slot) => (
-                    <div
-                      key={slot._id}
-                      className={`slot-card ${slot.status}`}
-                    >
-                      <div className="slot-header-info">
-                        {(selectedRoom === 'all' || selectedRoom?.isGroup) && (
-                          <div className="slot-room-name">
-                            📍 {slot.roomId?.name}
-                          </div>
-                        )}
-                        <div className="slot-date-badge">
-                          📅 {new Date(slot.date).toLocaleDateString('ar-EG', { 
-                            weekday: 'short', 
-                            day: 'numeric', 
-                            month: 'short' 
-                          })}
-                        </div>
-                      </div>
-                      <div className="slot-time">
-                        <Clock size={20} />
-                        <span className="time-range">
-                          {formatTimeRange(slot.startTime, slot.endTime)}
-                        </span>
-                      </div>
+                {/* Group slots organized by room */}
+                {selectedRoom?.isGroup ? (
+                  <div className="group-slots-container">
+                    {(() => {
+                      // Group slots by room
+                      const slotsByRoom = slots.reduce((acc, slot) => {
+                        const roomName = slot.roomId?.name || 'غير محدد';
+                        if (!acc[roomName]) {
+                          acc[roomName] = [];
+                        }
+                        acc[roomName].push(slot);
+                        return acc;
+                      }, {});
 
-                      <div className="slot-details">
-                        {slot.status === 'available' && (
-                          <div className="detail-row available-slot-info">
-                            <span className="available-text">✨ متاح للحجز</span>
+                      return Object.entries(slotsByRoom).map(([roomName, roomSlots]) => (
+                        <div key={roomName} className="room-group-section">
+                          <div className="room-group-header">
+                            <h3>📍 {roomName}</h3>
+                            <span className="room-slot-count">{roomSlots.length} وقت متاح</span>
                           </div>
-                        )}
-                        {slot.status === 'booked' && slot.serviceName && (
-                          <div className="detail-row">
-                            <span className="label">الخدمة:</span>
-                            <span className="value">{slot.serviceName}</span>
+                          <div className="slots-grid">
+                            {roomSlots.map((slot) => (
+                              <div
+                                key={slot._id}
+                                className={`slot-card ${slot.status}`}
+                              >
+                                <div className="slot-header-info">
+                                  <div className="slot-date-badge">
+                                    📅 {new Date(slot.date).toLocaleDateString('ar-EG', { 
+                                      weekday: 'short', 
+                                      day: 'numeric', 
+                                      month: 'short' 
+                                    })}
+                                  </div>
+                                </div>
+                                <div className="slot-time">
+                                  <Clock size={20} />
+                                  <span className="time-range">
+                                    {formatTimeRange(slot.startTime, slot.endTime)}
+                                  </span>
+                                </div>
+
+                                <div className="slot-details">
+                                  {slot.status === 'available' && (
+                                    <div className="detail-row available-slot-info">
+                                      <span className="available-text">✨ متاح للحجز</span>
+                                    </div>
+                                  )}
+                                  {slot.status === 'booked' && slot.serviceName && (
+                                    <div className="detail-row">
+                                      <span className="label">الخدمة:</span>
+                                      <span className="value">{slot.serviceName}</span>
+                                    </div>
+                                  )}
+                                  {slot.status === 'booked' && slot.providerName && (
+                                    <div className="detail-row">
+                                      <span className="label">الخادم:</span>
+                                      <span className="value">{slot.providerName}</span>
+                                    </div>
+                                  )}
+                                  {slot.type === 'weekly' && (
+                                    <div className="weekly-badge">
+                                      <Calendar size={14} /> أسبوعي
+                                    </div>
+                                  )}
+                                </div>
+
+                                {slot.status === 'available' ? (
+                                  <button
+                                    className="book-btn"
+                                    onClick={() => handleBookSlot(slot)}
+                                  >
+                                    <Send size={16} /> طلب حجز
+                                  </button>
+                                ) : (
+                                  <div className="booked-info">
+                                    <CheckCircle size={18} />
+                                    <div>
+                                      <strong>محجوز</strong>
+                                      {slot.bookedBy && (
+                                        <p className="booked-by-name">بواسطة {slot.bookedBy}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        )}
-                        {slot.status === 'booked' && slot.providerName && (
-                          <div className="detail-row">
-                            <span className="label">الخادم:</span>
-                            <span className="value">{slot.providerName}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <div className="slots-grid">
+                    {slots.map((slot) => (
+                      <div
+                        key={slot._id}
+                        className={`slot-card ${slot.status}`}
+                      >
+                        <div className="slot-header-info">
+                          {selectedRoom === 'all' && (
+                            <div className="slot-room-name">
+                              📍 {slot.roomId?.name}
+                            </div>
+                          )}
+                          <div className="slot-date-badge">
+                            📅 {new Date(slot.date).toLocaleDateString('ar-EG', { 
+                              weekday: 'short', 
+                              day: 'numeric', 
+                              month: 'short' 
+                            })}
                           </div>
-                        )}
-                        {slot.type === 'weekly' && (
-                          <div className="weekly-badge">
-                            <Calendar size={14} /> أسبوعي
+                        </div>
+                        <div className="slot-time">
+                          <Clock size={20} />
+                          <span className="time-range">
+                            {formatTimeRange(slot.startTime, slot.endTime)}
+                          </span>
+                        </div>
+
+                        <div className="slot-details">
+                          {slot.status === 'available' && (
+                            <div className="detail-row available-slot-info">
+                              <span className="available-text">✨ متاح للحجز</span>
+                            </div>
+                          )}
+                          {slot.status === 'booked' && slot.serviceName && (
+                            <div className="detail-row">
+                              <span className="label">الخدمة:</span>
+                              <span className="value">{slot.serviceName}</span>
+                            </div>
+                          )}
+                          {slot.status === 'booked' && slot.providerName && (
+                            <div className="detail-row">
+                              <span className="label">الخادم:</span>
+                              <span className="value">{slot.providerName}</span>
+                            </div>
+                          )}
+                          {slot.type === 'weekly' && (
+                            <div className="weekly-badge">
+                              <Calendar size={14} /> أسبوعي
+                            </div>
+                          )}
+                        </div>
+
+                        {slot.status === 'available' ? (
+                          <button
+                            className="book-btn"
+                            onClick={() => handleBookSlot(slot)}
+                          >
+                            <Send size={16} /> طلب حجز
+                          </button>
+                        ) : (
+                          <div className="booked-info">
+                            <CheckCircle size={18} />
+                            <div>
+                              <strong>محجوز</strong>
+                              {slot.bookedBy && (
+                                <p className="booked-by-name">بواسطة {slot.bookedBy}</p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
-
-                      {slot.status === 'available' ? (
-                        <button
-                          className="book-btn"
-                          onClick={() => handleBookSlot(slot)}
-                        >
-                          <Send size={16} /> طلب حجز
-                        </button>
-                      ) : (
-                        <div className="booked-info">
-                          <CheckCircle size={18} />
-                          <div>
-                            <strong>محجوز</strong>
-                            {slot.bookedBy && (
-                              <p className="booked-by-name">بواسطة {slot.bookedBy}</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Load More Button */}
                 {hasMoreSlots() && (
