@@ -43,6 +43,9 @@
   max-width: 800px;
   padding: 2rem;
   animation: fadeInUp 1s ease-out;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(26, 115, 232, 0.1);
 }
 
 .hero-logo {
