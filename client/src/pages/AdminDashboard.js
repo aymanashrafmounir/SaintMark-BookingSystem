@@ -248,7 +248,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       socketService.removeListener('new-booking-request');
       socketService.removeListener('booking-approved');
     };
-  }, [loadRooms, loadRoomGroups, loadBookings, activeTab]);
+  }, [loadRooms, loadRoomGroups, loadBookings, loadSlots, activeTab]);
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
@@ -779,6 +779,16 @@ function AdminDashboard({ setIsAuthenticated }) {
     setShowSlotModal(true);
   };
 
+  // Check if there are active filters
+  const hasActiveFilters = useCallback(() => {
+    return Object.entries(slotFilters).some(([key, value]) => {
+      if (key === 'daysOfWeek') {
+        return Array.isArray(value) && value.length > 0;
+      }
+      return value !== '' && value !== null && value !== undefined;
+    });
+  }, [slotFilters]);
+
   // Apply filters - trigger server-side reload (only when button is clicked)
   const applySlotFilters = useCallback(() => {
     if (!hasActiveFilters() && slots.length === 0) {
@@ -992,14 +1002,6 @@ function AdminDashboard({ setIsAuthenticated }) {
     );
   };
 
-  const hasActiveFilters = () => {
-    return Object.entries(slotFilters).some(([key, value]) => {
-      if (key === 'daysOfWeek') {
-        return Array.isArray(value) && value.length > 0;
-      }
-      return value !== '' && value !== null && value !== undefined;
-    });
-  };
 
   if (loading) {
     return (
