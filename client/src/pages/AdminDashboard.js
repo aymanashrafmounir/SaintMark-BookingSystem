@@ -60,7 +60,8 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [confirmConfig, setConfirmConfig] = useState({
     title: '',
     message: '',
-    onConfirm: null
+    onConfirm: null,
+    confirmButtonText: 'تأكيد'
   });
 
   const [roomForm, setRoomForm] = useState({ name: '', isEnabled: true });
@@ -123,14 +124,18 @@ function AdminDashboard({ setIsAuthenticated }) {
   const bookingsPerPage = 50;
 
   // Open confirmation modal
-  const openConfirmModal = (title, message, onConfirm) => {
-    setConfirmConfig({ title, message, onConfirm });
+  const openConfirmModal = (title, message, onConfirm, confirmButtonText = 'تأكيد') => {
+    setConfirmConfig({ title, message, onConfirm, confirmButtonText });
     setShowConfirmModal(true);
   };
 
   const handleConfirm = () => {
+    console.log('handleConfirm called, onConfirm function:', confirmConfig.onConfirm);
     if (confirmConfig.onConfirm) {
+      console.log('Executing onConfirm function...');
       confirmConfig.onConfirm();
+    } else {
+      console.log('No onConfirm function found');
     }
     setShowConfirmModal(false);
   };
@@ -1046,6 +1051,9 @@ function AdminDashboard({ setIsAuthenticated }) {
       `هل أنت متأكد من تحويل ${selectedSlots.length} موعد إلى أسبوعية؟`,
       async () => {
         try {
+          console.log('Starting bulk weekly update for slots:', selectedSlots);
+          toast.info(`⏳ جاري تحويل ${selectedSlots.length} موعد إلى أسبوعية...`);
+          
           const response = await fetch('/api/slots/bulk-update', {
             method: 'PUT',
             headers: {
@@ -1058,19 +1066,23 @@ function AdminDashboard({ setIsAuthenticated }) {
             })
           });
 
+          console.log('Response status:', response.status);
+          const responseData = await response.json();
+          console.log('Response data:', responseData);
+
           if (response.ok) {
             toast.success(`تم تحويل ${selectedSlots.length} موعد إلى أسبوعية بنجاح`);
             setSelectedSlots([]);
             loadSlots(slotsCurrentPage, slotFilters);
           } else {
-            const error = await response.json();
-            toast.error(error.error || 'فشل في تحويل المواعيد');
+            toast.error(responseData.error || 'فشل في تحويل المواعيد');
           }
         } catch (error) {
           console.error('Error making slots weekly:', error);
           toast.error('حدث خطأ أثناء تحويل المواعيد');
         }
-      }
+      },
+      'تحويل إلى أسبوعية'
     );
   };
 
@@ -1086,6 +1098,9 @@ function AdminDashboard({ setIsAuthenticated }) {
       `هل أنت متأكد من جعل ${selectedSlots.length} موعد متاح للحجز؟`,
       async () => {
         try {
+          console.log('Starting bulk make available for slots:', selectedSlots);
+          toast.info(`⏳ جاري جعل ${selectedSlots.length} موعد متاح...`);
+          
           const response = await fetch('/api/slots/bulk-update', {
             method: 'PUT',
             headers: {
@@ -1103,19 +1118,23 @@ function AdminDashboard({ setIsAuthenticated }) {
             })
           });
 
+          console.log('Response status:', response.status);
+          const responseData = await response.json();
+          console.log('Response data:', responseData);
+
           if (response.ok) {
             toast.success(`تم جعل ${selectedSlots.length} موعد متاح بنجاح`);
             setSelectedSlots([]);
             loadSlots(slotsCurrentPage, slotFilters);
           } else {
-            const error = await response.json();
-            toast.error(error.error || 'فشل في جعل المواعيد متاحة');
+            toast.error(responseData.error || 'فشل في جعل المواعيد متاحة');
           }
         } catch (error) {
           console.error('Error making slots available:', error);
           toast.error('حدث خطأ أثناء جعل المواعيد متاحة');
         }
-      }
+      },
+      'جعل متاح'
     );
   };
 
@@ -1646,14 +1665,6 @@ function AdminDashboard({ setIsAuthenticated }) {
               </div>
 
               <div className="slots-table-container">
-                {/* Helper message when no slots loaded yet */}
-                {slots.length === 0 && slotsPagination.total === 0 && (
-                  <div className="filter-helper-message">
-                    <Calendar size={32} />
-                    <p>👆 اختر الفلاتر أعلاه ثم اضغط "تطبيق التصفية" لعرض المواعيد</p>
-                    <small>يمكنك ترك الفلاتر فارغة لعرض جميع المواعيد</small>
-                  </div>
-                )}
                 
                 <table className="slots-table">
                   <thead>
@@ -2614,7 +2625,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                   className="btn-danger"
                   onClick={handleConfirm}
                 >
-                  تأكيد الحذف
+                  {confirmConfig.confirmButtonText}
                 </button>
               </div>
             </div>
