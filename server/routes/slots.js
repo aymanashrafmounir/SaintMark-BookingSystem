@@ -344,7 +344,17 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     }
 
     // Original filter-based bulk update logic
-    if (!updates || !updates.serviceName || !updates.providerName) {
+    // Allow empty serviceName and providerName for "make available" operations
+    if (!updates) {
+      return res.status(400).json({ error: 'Updates object is required' });
+    }
+    
+    // If making slots available, serviceName and providerName can be empty
+    const isMakingAvailable = updates.status === 'available' && 
+                             (updates.serviceName === '' || updates.serviceName === null) &&
+                             (updates.providerName === '' || updates.providerName === null);
+    
+    if (!isMakingAvailable && (!updates.serviceName || !updates.providerName)) {
       return res.status(400).json({ error: 'Service name and provider name are required for filter-based updates' });
     }
 
@@ -409,10 +419,10 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
 
     // Update all matching slots
     const updateData = {
-      serviceName: updates.serviceName,
-      providerName: updates.providerName,
-      status: 'booked',
-      bookedBy: updates.providerName
+      serviceName: updates.serviceName || '',
+      providerName: updates.providerName || '',
+      status: updates.status || (isMakingAvailable ? 'available' : 'booked'),
+      bookedBy: isMakingAvailable ? null : (updates.providerName || null)
     };
 
     const slotsToUpdateIds = slotsToUpdate.map(slot => slot._id);
