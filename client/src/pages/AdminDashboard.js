@@ -200,30 +200,31 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   }, [bookingsCurrentPage, bookingsPerPage]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    
-    // Timeout to handle slow backend response (Render cold start)
-    const loadingTimeout = setTimeout(() => {
-      setLoading(false);
-      toast.error('انتهت مهلة الاتصال. يرجى تحديث الصفحة.');
-    }, 30000); // 30 seconds timeout
-    
-    try {
-      await Promise.all([loadRooms(), loadRoomGroups(), loadSlots(), loadBookings()]);
-      clearTimeout(loadingTimeout);
-    } catch (error) {
-      clearTimeout(loadingTimeout);
-      console.error('Load data error:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'خطأ في الاتصال';
-      toast.error(`فشل تحميل البيانات: ${errorMessage}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [loadRooms, loadRoomGroups, loadSlots, loadBookings]);
 
   useEffect(() => {
-    loadData();
+    // Load rooms and groups initially, but NOT slots (wait for user to apply filters)
+    const initialLoad = async () => {
+      setLoading(true);
+      
+      const loadingTimeout = setTimeout(() => {
+        setLoading(false);
+        toast.error('انتهت مهلة الاتصال. يرجى تحديث الصفحة.');
+      }, 30000);
+      
+      try {
+        await Promise.all([loadRooms(), loadRoomGroups(), loadBookings()]);
+        clearTimeout(loadingTimeout);
+      } catch (error) {
+        clearTimeout(loadingTimeout);
+        console.error('Load data error:', error);
+        const errorMessage = error.response?.data?.error || error.message || 'خطأ في الاتصال';
+        toast.error(`فشل تحميل البيانات: ${errorMessage}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    initialLoad();
     
     // Connect to socket
     socketService.connect();
@@ -237,14 +238,17 @@ function AdminDashboard({ setIsAuthenticated }) {
 
     socketService.onBookingApproved(() => {
       loadBookings();
-      loadSlots();
+      // Only reload slots if we're on the slots tab
+      if (activeTab === 'slots') {
+        loadSlots();
+      }
     });
 
     return () => {
       socketService.removeListener('new-booking-request');
       socketService.removeListener('booking-approved');
     };
-  }, [loadData, loadBookings, loadSlots]);
+  }, [loadRooms, loadRoomGroups, loadBookings, activeTab]);
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
@@ -775,11 +779,15 @@ function AdminDashboard({ setIsAuthenticated }) {
     setShowSlotModal(true);
   };
 
-  // Apply filters - trigger server-side reload
+  // Apply filters - trigger server-side reload (only when button is clicked)
   const applySlotFilters = useCallback(() => {
+    if (!hasActiveFilters() && slots.length === 0) {
+      // First time load or no filters - show a helpful message
+      toast.info('⏳ جاري تحميل المواعيد...');
+    }
     setSlotsCurrentPage(1); // Reset to page 1 when filters change
     loadSlots(1, slotFilters);
-  }, [slotFilters, loadSlots]);
+  }, [slotFilters, loadSlots, hasActiveFilters, slots.length]);
 
   const clearSlotFilters = () => {
     const emptyFilters = {
@@ -1197,6 +1205,15 @@ function AdminDashboard({ setIsAuthenticated }) {
                   <Plus size={18} /> إضافة موعد
                 </button>
               </div>
+
+              {/* Helper message when no slots loaded yet */}
+              {slots.length === 0 && slotsPagination.total === 0 && (
+                <div className="filter-helper-message">
+                  <Calendar size={32} />
+                  <p>👆 اختر الفلاتر أعلاه ثم اضغط "تطبيق التصفية" لعرض المواعيد</p>
+                  <small>يمكنك ترك الفلاتر فارغة لعرض جميع المواعيد</small>
+                </div>
+              )}
 
               {/* Slot Filters */}
               <div className="filters-container">
