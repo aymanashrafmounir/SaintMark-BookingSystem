@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node --max-old-space-size=4096 index.js",
     "dev": "nodemon --max-old-space-size=4096 index.js",
-    "start:memory": "node --max-old-space-size=8192 index.js"
+    "start:memory": "node --max-old-space-size=8192 index.js",
+    "build": "echo 'No build step required'",
+    "postinstall": "echo 'Installation completed'"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
