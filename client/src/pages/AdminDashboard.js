@@ -1446,22 +1446,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {slots.length === 0 ? (
-                      <tr>
-                        <td colSpan="9" className="no-results">
-                          <div className="no-results-content">
-                            <Calendar size={48} />
-                            <p>لا توجد مواعيد تطابق التصفية</p>
-                            {hasActiveFilters() && (
-                              <button className="btn-secondary" onClick={clearSlotFilters}>
-                                إزالة التصفية
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      slots.map((slot) => (
+                    {slots.map((slot) => (
                       <tr key={slot._id} className={selectedSlots.includes(slot._id) ? 'selected-row' : ''}>
                         <td>
                           <input
@@ -1506,8 +1491,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                           </div>
                         </td>
                       </tr>
-                      ))
-                    )}
+                      ))}
                   </tbody>
                 </table>
               </div>
