@@ -791,22 +791,6 @@ function AdminDashboard({ setIsAuthenticated }) {
     );
   };
 
-  const handleExportExcel = async () => {
-    try {
-      const response = await exportAPI.downloadExcel();
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `booking-export-${Date.now()}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success('تم تحميل ملف Excel بنجاح');
-    } catch (error) {
-      toast.error('فشل تصدير البيانات');
-    }
-  };
-
   const handleExportSlotsJSON = async () => {
     try {
       const response = await exportAPI.downloadSlotsJSON();
@@ -1263,6 +1247,57 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   };
 
+  // Bulk make filtered slots available
+  const handleBulkMakeAvailableFiltered = () => {
+    if (slotsPagination.total === 0) {
+      toast.error('لا توجد مواعيد في الفلترة الحالية');
+      return;
+    }
+
+    const confirmMessage = hasActiveFilters() 
+      ? `هل أنت متأكد من جعل ${slotsPagination.total} موعد متاح للحجز (الفلترة الحالية)؟`
+      : `هل أنت متأكد من جعل جميع المواعيد (${slotsPagination.total} موعد) متاحة للحجز؟`;
+    
+    openConfirmModal(
+      '✅ جعل المواعيد متاحة (الفلترة الحالية)',
+      confirmMessage,
+      async () => {
+        try {
+          toast.info(`⏳ جاري جعل ${slotsPagination.total} موعد متاح...`);
+          
+          // Build filter params
+          const params = { ...slotFilters };
+          if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
+            params.daysOfWeek = params.daysOfWeek.join(',');
+          }
+          if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
+            params.roomIds = params.roomIds.join(',');
+          }
+          if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
+            params.timeRanges = params.timeRanges.join(',');
+          }
+          
+          const response = await slotAPI.bulkUpdate({
+            filters: params,
+            updates: {
+              serviceName: '',
+              providerName: '',
+              status: 'available',
+              bookedBy: null
+            }
+          });
+          
+          const updatedCount = response.data.count || slotsPagination.total;
+          toast.success(`✅ تم جعل ${updatedCount} موعد متاح بنجاح!`);
+          await loadSlots();
+        } catch (error) {
+          console.error('Bulk make available filtered error:', error);
+          toast.error('فشل جعل المواعيد متاحة');
+        }
+      }
+    );
+  };
+
   // Bulk delete filtered slots
   const handleBulkDeleteFiltered = () => {
     if (slotsPagination.total === 0) {
@@ -1352,19 +1387,12 @@ function AdminDashboard({ setIsAuthenticated }) {
               <span className="badge">{pendingBookings.length}</span>
             )}
           </button>
-          <div className="export-dropdown">
-            <button className="tab export-tab">
-              <Download size={20} /> تصدير
-            </button>
-            <div className="export-dropdown-content">
-              <button onClick={handleExportExcel}>
-                <Download size={16} /> تصدير Excel
-              </button>
-              <button onClick={handleExportSlotsJSON}>
-                <Download size={16} /> تصدير الفترات JSON
-              </button>
-            </div>
-          </div>
+          <button
+            className="tab export-tab"
+            onClick={handleExportSlotsJSON}
+          >
+            <Download size={20} /> تصدير
+          </button>
         </div>
 
         <div className="tab-content">
@@ -1733,6 +1761,9 @@ function AdminDashboard({ setIsAuthenticated }) {
                 <div className="filtered-action-buttons">
                   <button className="btn-filtered-assign" onClick={handleBulkAssignFiltered}>
                     ✏️ تعيين للفلترة الحالية
+                  </button>
+                  <button className="btn-filtered-available" onClick={handleBulkMakeAvailableFiltered}>
+                    ✅ جعل متاحة
                   </button>
                   <button className="btn-filtered-delete" onClick={handleBulkDeleteFiltered}>
                     <Trash2 size={16} /> حذف الفلترة الحالية

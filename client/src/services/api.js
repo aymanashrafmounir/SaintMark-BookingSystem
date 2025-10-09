@@ -72,17 +72,6 @@ export const bookingAPI = {
 
 // Export API
 export const exportAPI = {
-  downloadExcel: () => {
-    const token = localStorage.getItem('adminToken');
-    return axios({
-      url: `${API_URL}/export/excel`,
-      method: 'GET',
-      responseType: 'blob',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-  },
   downloadSlotsJSON: () => {
     const token = localStorage.getItem('adminToken');
     return axios({
