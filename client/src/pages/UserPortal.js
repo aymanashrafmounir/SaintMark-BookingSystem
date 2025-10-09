@@ -54,7 +54,7 @@ function UserPortal() {
   const [submitting, setSubmitting] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [currentDateIndex, setCurrentDateIndex] = useState(0);
-  const DATES_PER_LOAD = 3; // Load 3 days at a time
+  const DATES_PER_LOAD = 10; // Load 10 days at a time
 
   // Helper function to get array of dates between start and end
   const getDateRange = useCallback((start, end) => {
