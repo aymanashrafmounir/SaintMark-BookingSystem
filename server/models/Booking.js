@@ -70,5 +70,11 @@ bookingSchema.pre('save', function(next) {
   next();
 });
 
+// Add indexes for better query performance
+bookingSchema.index({ status: 1, createdAt: -1 }); // Most common query (filter by status, sort by date)
+bookingSchema.index({ roomId: 1, date: -1 }); // Filter by room and date
+bookingSchema.index({ createdAt: -1 }); // Sort by creation date
+bookingSchema.index({ userName: 1 }); // Search by user name
+
 module.exports = mongoose.model('Booking', bookingSchema);
 

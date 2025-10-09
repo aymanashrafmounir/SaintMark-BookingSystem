@@ -30,14 +30,87 @@ router.get('/room/:roomId', async (req, res) => {
   }
 });
 
-// Get all slots (admin)
+// Get all slots (admin) with pagination and filtering
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const slots = await Slot.find()
-      .populate('roomId', 'name isEnabled')
-      .sort({ date: -1, startTime: 1 });
+    const { 
+      page = 1, 
+      limit = 50, 
+      roomId, 
+      serviceName, 
+      providerName, 
+      type, 
+      date,
+      dateRangeStart,
+      dateRangeEnd,
+      daysOfWeek, // comma-separated: "0,1,6" for Sunday, Monday, Saturday
+      startTime, 
+      endTime 
+    } = req.query;
+
+    // Build filter query
+    const filter = {};
     
-    res.json(slots);
+    if (roomId) filter.roomId = roomId;
+    if (type) filter.type = type;
+    if (startTime) filter.startTime = startTime;
+    if (endTime) filter.endTime = endTime;
+    
+    // Case-insensitive search for text fields
+    if (serviceName) {
+      filter.serviceName = { $regex: serviceName, $options: 'i' };
+    }
+    if (providerName) {
+      filter.providerName = { $regex: providerName, $options: 'i' };
+    }
+    
+    // Date filtering - prioritize range over single date
+    if (dateRangeStart && dateRangeEnd) {
+      const startDate = new Date(dateRangeStart);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      filter.date = { $gte: startDate, $lte: endDate };
+    } else if (date) {
+      const searchDate = new Date(date);
+      const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
+      filter.date = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    // Calculate pagination
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    // Execute query with pagination
+    let slots = await Slot.find(filter)
+      .populate('roomId', 'name isEnabled')
+      .sort({ date: -1, startTime: 1 })
+      .lean(); // Use lean() for better performance
+    
+    // Filter by days of week if specified (client-side filtering for flexibility)
+    if (daysOfWeek) {
+      const selectedDays = daysOfWeek.split(',').map(d => parseInt(d));
+      slots = slots.filter(slot => {
+        const slotDay = new Date(slot.date).getDay(); // 0 = Sunday, 1 = Monday, etc.
+        return selectedDays.includes(slotDay);
+      });
+    }
+    
+    // Apply pagination after day filtering
+    const totalCount = slots.length;
+    const paginatedSlots = slots.slice(skip, skip + limitNumber);
+    
+    res.json({
+      slots: paginatedSlots,
+      pagination: {
+        total: totalCount,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(totalCount / limitNumber)
+      }
+    });
   } catch (error) {
     console.error('Get all slots error:', error);
     res.status(500).json({ error: 'Failed to fetch slots' });
@@ -186,6 +259,142 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Delete slot error:', error);
     res.status(500).json({ error: 'Failed to delete slot' });
+  }
+});
+
+// Bulk update slots (admin only) - Update multiple slots with filters
+router.put('/bulk-update', authMiddleware, async (req, res) => {
+  try {
+    const { filters, updates } = req.body;
+
+    if (!updates || !updates.serviceName || !updates.providerName) {
+      return res.status(400).json({ error: 'Service name and provider name are required' });
+    }
+
+    // Build query from filters
+    const query = {};
+    
+    if (filters.roomId) query.roomId = filters.roomId;
+    if (filters.type) query.type = filters.type;
+    if (filters.startTime) query.startTime = filters.startTime;
+    if (filters.endTime) query.endTime = filters.endTime;
+    
+    if (filters.serviceName) {
+      query.serviceName = { $regex: filters.serviceName, $options: 'i' };
+    }
+    if (filters.providerName) {
+      query.providerName = { $regex: filters.providerName, $options: 'i' };
+    }
+    
+    // Date range filter
+    if (filters.dateRangeStart && filters.dateRangeEnd) {
+      const startDate = new Date(filters.dateRangeStart);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(filters.dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      query.date = { $gte: startDate, $lte: endDate };
+    } else if (filters.date) {
+      const searchDate = new Date(filters.date);
+      const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
+      query.date = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    // Get slots to filter by day of week if needed
+    let slotsToUpdate = await Slot.find(query);
+    
+    // Filter by days of week if specified
+    if (filters.daysOfWeek) {
+      const selectedDays = filters.daysOfWeek.split(',').map(d => parseInt(d));
+      slotsToUpdate = slotsToUpdate.filter(slot => {
+        const slotDay = new Date(slot.date).getDay();
+        return selectedDays.includes(slotDay);
+      });
+    }
+
+    // Update all matching slots
+    const updateData = {
+      serviceName: updates.serviceName,
+      providerName: updates.providerName,
+      status: 'booked',
+      bookedBy: updates.providerName
+    };
+
+    const slotIds = slotsToUpdate.map(slot => slot._id);
+    const result = await Slot.updateMany(
+      { _id: { $in: slotIds } },
+      { $set: updateData }
+    );
+
+    res.json({
+      success: true,
+      count: result.modifiedCount,
+      message: `Updated ${result.modifiedCount} slots`
+    });
+  } catch (error) {
+    console.error('Bulk update slots error:', error);
+    res.status(500).json({ error: 'Failed to update slots' });
+  }
+});
+
+// Bulk delete slots (admin only) - Delete multiple slots with filters
+router.post('/bulk-delete', authMiddleware, async (req, res) => {
+  try {
+    const { filters } = req.body;
+
+    // Build query from filters
+    const query = {};
+    
+    if (filters.roomId) query.roomId = filters.roomId;
+    if (filters.type) query.type = filters.type;
+    if (filters.startTime) query.startTime = filters.startTime;
+    if (filters.endTime) query.endTime = filters.endTime;
+    
+    if (filters.serviceName) {
+      query.serviceName = { $regex: filters.serviceName, $options: 'i' };
+    }
+    if (filters.providerName) {
+      query.providerName = { $regex: filters.providerName, $options: 'i' };
+    }
+    
+    // Date range filter
+    if (filters.dateRangeStart && filters.dateRangeEnd) {
+      const startDate = new Date(filters.dateRangeStart);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(filters.dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      query.date = { $gte: startDate, $lte: endDate };
+    } else if (filters.date) {
+      const searchDate = new Date(filters.date);
+      const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
+      query.date = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    // Get slots to filter by day of week if needed
+    let slotsToDelete = await Slot.find(query);
+    
+    // Filter by days of week if specified
+    if (filters.daysOfWeek) {
+      const selectedDays = filters.daysOfWeek.split(',').map(d => parseInt(d));
+      slotsToDelete = slotsToDelete.filter(slot => {
+        const slotDay = new Date(slot.date).getDay();
+        return selectedDays.includes(slotDay);
+      });
+    }
+
+    // Delete all matching slots
+    const slotIds = slotsToDelete.map(slot => slot._id);
+    const result = await Slot.deleteMany({ _id: { $in: slotIds } });
+
+    res.json({
+      success: true,
+      count: result.deletedCount,
+      message: `Deleted ${result.deletedCount} slots`
+    });
+  } catch (error) {
+    console.error('Bulk delete slots error:', error);
+    res.status(500).json({ error: 'Failed to delete slots' });
   }
 });
 

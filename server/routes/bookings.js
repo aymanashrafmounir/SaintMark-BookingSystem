@@ -4,15 +4,43 @@ const Booking = require('../models/Booking');
 const Slot = require('../models/Slot');
 const authMiddleware = require('../middleware/auth');
 
-// Get all bookings (admin only)
+// Get all bookings (admin only) with pagination
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const bookings = await Booking.find()
-      .populate('roomId', 'name')
-      .populate('slotId')
-      .sort({ createdAt: 1 });
+    const { page = 1, limit = 50, status } = req.query;
     
-    res.json(bookings);
+    // Build filter
+    const filter = {};
+    if (status) {
+      filter.status = status;
+    }
+    
+    // Calculate pagination
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+    const skip = (pageNumber - 1) * limitNumber;
+    
+    // Execute query with pagination
+    const [bookings, totalCount] = await Promise.all([
+      Booking.find(filter)
+        .populate('roomId', 'name')
+        .populate('slotId')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNumber)
+        .lean(),
+      Booking.countDocuments(filter)
+    ]);
+    
+    res.json({
+      bookings,
+      pagination: {
+        total: totalCount,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(totalCount / limitNumber)
+      }
+    });
   } catch (error) {
     console.error('Get bookings error:', error);
     res.status(500).json({ error: 'Failed to fetch bookings' });

@@ -50,5 +50,14 @@ const slotSchema = new mongoose.Schema({
   }
 });
 
+// Add indexes for better query performance
+slotSchema.index({ roomId: 1, date: -1 }); // Most common query pattern
+slotSchema.index({ date: -1, startTime: 1 }); // Date-based sorting
+slotSchema.index({ serviceName: 1 }); // Text search
+slotSchema.index({ providerName: 1 }); // Text search
+slotSchema.index({ type: 1 }); // Filter by type
+slotSchema.index({ status: 1 }); // Filter by status
+slotSchema.index({ roomId: 1, date: -1, startTime: 1 }); // Compound index for common queries
+
 module.exports = mongoose.model('Slot', slotSchema);
 

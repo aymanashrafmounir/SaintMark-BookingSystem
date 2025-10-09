@@ -31,7 +31,7 @@ const formatTimeRange = (startTime, endTime) => {
   const start = formatTime12Hour(startTime);
   const end = formatTime12Hour(endTime);
   // Force LTR for each time using embedding characters
-  return `\u202A${start}\u202C ← \u202A${end}\u202C`;
+  return `\u202A${start}\u202C → \u202A${end}\u202C`;
 };
 
 function AdminDashboard({ setIsAuthenticated }) {
@@ -39,7 +39,9 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [rooms, setRooms] = useState([]);
   const [roomGroups, setRoomGroups] = useState([]);
   const [slots, setSlots] = useState([]);
+  const [slotsPagination, setSlotsPagination] = useState({ total: 0, page: 1, limit: 50, totalPages: 0 });
   const [bookings, setBookings] = useState([]);
+  const [bookingsPagination, setBookingsPagination] = useState({ total: 0, page: 1, limit: 50, totalPages: 0 });
   const [pendingBookings, setPendingBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showRoomModal, setShowRoomModal] = useState(false);
@@ -88,6 +90,9 @@ function AdminDashboard({ setIsAuthenticated }) {
     providerName: '',
     type: '',
     date: '',
+    dateRangeStart: '',
+    dateRangeEnd: '',
+    daysOfWeek: [], // Array of selected days: 0 = Sunday, 1 = Monday, etc.
     startTime: '',
     endTime: ''
   });
@@ -95,6 +100,15 @@ function AdminDashboard({ setIsAuthenticated }) {
   // Pagination for slots
   const [slotsCurrentPage, setSlotsCurrentPage] = useState(1);
   const slotsPerPage = 50;
+  
+  // Bulk selection for slots
+  const [selectedSlots, setSelectedSlots] = useState([]);
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [bulkAssignForm, setBulkAssignForm] = useState({
+    serviceName: '',
+    providerName: ''
+  });
+  const [bulkActionTarget, setBulkActionTarget] = useState('selected'); // 'selected' or 'filtered'
 
   // Pagination for bookings
   const [bookingsCurrentPage, setBookingsCurrentPage] = useState(1);
@@ -131,27 +145,60 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   }, []);
 
-  const loadSlots = useCallback(async () => {
+  const loadSlots = useCallback(async (page = slotsCurrentPage, filters = slotFilters) => {
     try {
-      const response = await slotAPI.getAll();
-      setSlots(response.data);
+      const params = {
+        page,
+        limit: slotsPerPage,
+        ...filters
+      };
+      
+      // Convert daysOfWeek array to comma-separated string
+      if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
+        params.daysOfWeek = params.daysOfWeek.join(',');
+      } else {
+        delete params.daysOfWeek;
+      }
+      
+      // Remove empty filter values
+      Object.keys(params).forEach(key => {
+        if (params[key] === '' || params[key] === null || params[key] === undefined) {
+          delete params[key];
+        }
+      });
+      
+      const response = await slotAPI.getAll(params);
+      setSlots(response.data.slots);
+      setSlotsPagination(response.data.pagination);
     } catch (error) {
       console.error('Load slots error:', error);
+      toast.error('فشل تحميل المواعيد');
     }
-  }, []);
+  }, [slotsCurrentPage, slotFilters, slotsPerPage]);
 
-  const loadBookings = useCallback(async () => {
+  const loadBookings = useCallback(async (page = bookingsCurrentPage) => {
     try {
+      const params = {
+        page,
+        limit: bookingsPerPage
+      };
+      
       const [allResponse, pendingResponse] = await Promise.all([
-        bookingAPI.getAll(),
+        bookingAPI.getAll(params),
         bookingAPI.getPending()
       ]);
-      setBookings(allResponse.data);
+      
+      // Filter out pending bookings on client side (since backend returns all)
+      const nonPendingBookings = allResponse.data.bookings.filter(b => b.status !== 'pending');
+      
+      setBookings(nonPendingBookings);
+      setBookingsPagination(allResponse.data.pagination);
       setPendingBookings(pendingResponse.data);
     } catch (error) {
       console.error('Load bookings error:', error);
+      toast.error('فشل تحميل الحجوزات');
     }
-  }, []);
+  }, [bookingsCurrentPage, bookingsPerPage]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -728,74 +775,222 @@ function AdminDashboard({ setIsAuthenticated }) {
     setShowSlotModal(true);
   };
 
-  // Filter slots based on selected filters
-  const getFilteredSlots = () => {
-    const filtered = slots.filter(slot => {
-      // Room filter
-      if (slotFilters.roomId && slot.roomId?._id !== slotFilters.roomId) {
-        return false;
-      }
-      
-      // Service filter
-      if (slotFilters.serviceName && !slot.serviceName.toLowerCase().includes(slotFilters.serviceName.toLowerCase())) {
-        return false;
-      }
-      
-      // Provider filter
-      if (slotFilters.providerName && !slot.providerName.toLowerCase().includes(slotFilters.providerName.toLowerCase())) {
-        return false;
-      }
-      
-      // Type filter
-      if (slotFilters.type && slot.type !== slotFilters.type) {
-        return false;
-      }
-      
-      // Date filter
-      if (slotFilters.date) {
-        const slotDate = new Date(slot.date).toISOString().split('T')[0];
-        if (slotDate !== slotFilters.date) {
-          return false;
-        }
-      }
-      
-      // Start time filter
-      if (slotFilters.startTime && slot.startTime !== slotFilters.startTime) {
-        return false;
-      }
-      
-      // End time filter
-      if (slotFilters.endTime && slot.endTime !== slotFilters.endTime) {
-        return false;
-      }
-      
-      return true;
-    });
-
-    // Calculate pagination
-    const indexOfLastSlot = slotsCurrentPage * slotsPerPage;
-    const indexOfFirstSlot = indexOfLastSlot - slotsPerPage;
-    return {
-      all: filtered,
-      paginated: filtered.slice(indexOfFirstSlot, indexOfLastSlot),
-      totalPages: Math.ceil(filtered.length / slotsPerPage)
-    };
-  };
+  // Apply filters - trigger server-side reload
+  const applySlotFilters = useCallback(() => {
+    setSlotsCurrentPage(1); // Reset to page 1 when filters change
+    loadSlots(1, slotFilters);
+  }, [slotFilters, loadSlots]);
 
   const clearSlotFilters = () => {
-    setSlotFilters({
+    const emptyFilters = {
       roomId: '',
       serviceName: '',
       providerName: '',
       type: '',
       date: '',
+      dateRangeStart: '',
+      dateRangeEnd: '',
+      daysOfWeek: [],
       startTime: '',
       endTime: ''
-    });
+    };
+    setSlotFilters(emptyFilters);
+    setSlotsCurrentPage(1);
+    loadSlots(1, emptyFilters);
+  };
+
+  const toggleDayOfWeek = (day) => {
+    const currentDays = [...slotFilters.daysOfWeek];
+    if (currentDays.includes(day)) {
+      setSlotFilters({ 
+        ...slotFilters, 
+        daysOfWeek: currentDays.filter(d => d !== day) 
+      });
+    } else {
+      setSlotFilters({ 
+        ...slotFilters, 
+        daysOfWeek: [...currentDays, day] 
+      });
+    }
+  };
+
+  // Bulk selection functions
+  const toggleSlotSelection = (slotId) => {
+    if (selectedSlots.includes(slotId)) {
+      setSelectedSlots(selectedSlots.filter(id => id !== slotId));
+    } else {
+      setSelectedSlots([...selectedSlots, slotId]);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSlots.length === slots.length) {
+      setSelectedSlots([]);
+    } else {
+      setSelectedSlots(slots.map(slot => slot._id));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedSlots([]);
+  };
+
+  // Bulk delete selected slots
+  const handleBulkDeleteSelected = async () => {
+    if (selectedSlots.length === 0) {
+      toast.error('لم يتم اختيار أي مواعيد');
+      return;
+    }
+
+    openConfirmModal(
+      '🗑️ حذف المواعيد المختارة',
+      `هل أنت متأكد من حذف ${selectedSlots.length} موعد؟ لا يمكن التراجع عن هذا الإجراء.`,
+      async () => {
+        try {
+          toast.info(`⏳ جاري حذف ${selectedSlots.length} موعد...`);
+          
+          // Delete each slot
+          const deletePromises = selectedSlots.map(id => slotAPI.delete(id));
+          await Promise.all(deletePromises);
+          
+          toast.success(`✅ تم حذف ${selectedSlots.length} موعد بنجاح!`);
+          setSelectedSlots([]);
+          loadSlots();
+        } catch (error) {
+          toast.error('فشل حذف بعض المواعيد');
+        }
+      }
+    );
+  };
+
+  // Bulk assign for selected slots
+  const handleBulkAssignSelected = () => {
+    if (selectedSlots.length === 0) {
+      toast.error('لم يتم اختيار أي مواعيد');
+      return;
+    }
+    setBulkActionTarget('selected');
+    setBulkAssignForm({ serviceName: '', providerName: '' });
+    setShowBulkAssignModal(true);
+  };
+
+  // Bulk assign for filtered slots
+  const handleBulkAssignFiltered = () => {
+    if (slotsPagination.total === 0) {
+      toast.error('لا توجد مواعيد في الفلترة الحالية');
+      return;
+    }
+    
+    const confirmMessage = hasActiveFilters() 
+      ? `هل تريد تطبيق الإجراء على ${slotsPagination.total} موعد (الفلترة الحالية)؟`
+      : `هل تريد تطبيق الإجراء على جميع المواعيد (${slotsPagination.total} موعد)؟`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+    
+    setBulkActionTarget('filtered');
+    setBulkAssignForm({ serviceName: '', providerName: '' });
+    setShowBulkAssignModal(true);
+  };
+
+  // Submit bulk assign
+  const handleSubmitBulkAssign = async (e) => {
+    e.preventDefault();
+    
+    if (!bulkAssignForm.serviceName || !bulkAssignForm.providerName) {
+      toast.error('يجب إدخال اسم الخدمة والخادم');
+      return;
+    }
+
+    try {
+      if (bulkActionTarget === 'selected') {
+        toast.info(`⏳ جاري تعيين ${selectedSlots.length} موعد...`);
+        
+        // Update each selected slot
+        const updatePromises = selectedSlots.map(id => 
+          slotAPI.update(id, {
+            serviceName: bulkAssignForm.serviceName,
+            providerName: bulkAssignForm.providerName
+          })
+        );
+        await Promise.all(updatePromises);
+        
+        toast.success(`✅ تم تعيين ${selectedSlots.length} موعد بنجاح!`);
+        setSelectedSlots([]);
+      } else {
+        // Apply to filtered results
+        toast.info(`⏳ جاري تعيين ${slotsPagination.total} موعد...`);
+        
+        // Build filter params
+        const params = { ...slotFilters };
+        if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
+          params.daysOfWeek = params.daysOfWeek.join(',');
+        }
+        
+        const response = await slotAPI.bulkUpdate({
+          filters: params,
+          updates: {
+            serviceName: bulkAssignForm.serviceName,
+            providerName: bulkAssignForm.providerName
+          }
+        });
+        
+        const updatedCount = response.data.count || slotsPagination.total;
+        toast.success(`✅ تم تعيين ${updatedCount} موعد بنجاح!`);
+      }
+      
+      setShowBulkAssignModal(false);
+      setBulkAssignForm({ serviceName: '', providerName: '' });
+      loadSlots();
+    } catch (error) {
+      toast.error('فشل تعيين المواعيد');
+    }
+  };
+
+  // Bulk delete filtered slots
+  const handleBulkDeleteFiltered = () => {
+    if (slotsPagination.total === 0) {
+      toast.error('لا توجد مواعيد في الفلترة الحالية');
+      return;
+    }
+
+    const confirmMessage = hasActiveFilters() 
+      ? `هل أنت متأكد من حذف ${slotsPagination.total} موعد (الفلترة الحالية)؟ لا يمكن التراجع عن هذا الإجراء.`
+      : `⚠️ خطر! هل أنت متأكد من حذف جميع المواعيد (${slotsPagination.total} موعد)؟`;
+    
+    openConfirmModal(
+      '🗑️ حذف المواعيد (الفلترة الحالية)',
+      confirmMessage,
+      async () => {
+        try {
+          toast.info(`⏳ جاري حذف ${slotsPagination.total} موعد...`);
+          
+          // Build filter params
+          const params = { ...slotFilters };
+          if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
+            params.daysOfWeek = params.daysOfWeek.join(',');
+          }
+          
+          const response = await slotAPI.bulkDelete({ filters: params });
+          const deletedCount = response.data.count || slotsPagination.total;
+          
+          toast.success(`✅ تم حذف ${deletedCount} موعد بنجاح!`);
+          loadSlots();
+        } catch (error) {
+          toast.error('فشل حذف المواعيد');
+        }
+      }
+    );
   };
 
   const hasActiveFilters = () => {
-    return Object.values(slotFilters).some(value => value !== '');
+    return Object.entries(slotFilters).some(([key, value]) => {
+      if (key === 'daysOfWeek') {
+        return Array.isArray(value) && value.length > 0;
+      }
+      return value !== '' && value !== null && value !== undefined;
+    });
   };
 
   if (loading) {
@@ -833,7 +1028,7 @@ function AdminDashboard({ setIsAuthenticated }) {
             className={`tab ${activeTab === 'slots' ? 'active' : ''}`}
             onClick={() => setActiveTab('slots')}
           >
-            <Calendar size={20} /> المواعيد ({slots.length})
+            <Calendar size={20} /> المواعيد ({slotsPagination.total || 0})
           </button>
           <button
             className={`tab ${activeTab === 'bookings' ? 'active' : ''}`}
@@ -1018,7 +1213,9 @@ function AdminDashboard({ setIsAuthenticated }) {
                     <label>المكان</label>
                     <select
                       value={slotFilters.roomId}
-                      onChange={(e) => setSlotFilters({ ...slotFilters, roomId: e.target.value })}
+                      onChange={(e) => {
+                        setSlotFilters({ ...slotFilters, roomId: e.target.value });
+                      }}
                     >
                       <option value="">جميع الأماكن</option>
                       {rooms.map((room) => (
@@ -1028,11 +1225,13 @@ function AdminDashboard({ setIsAuthenticated }) {
                   </div>
 
                   <div className="filter-item">
-                    <label>التاريخ</label>
+                    <label>التاريخ (يوم واحد)</label>
                     <input
                       type="date"
                       value={slotFilters.date}
-                      onChange={(e) => setSlotFilters({ ...slotFilters, date: e.target.value })}
+                      onChange={(e) => {
+                        setSlotFilters({ ...slotFilters, date: e.target.value });
+                      }}
                       placeholder="تصفية بالتاريخ"
                     />
                   </div>
@@ -1041,7 +1240,9 @@ function AdminDashboard({ setIsAuthenticated }) {
                     <label>النوع</label>
                     <select
                       value={slotFilters.type}
-                      onChange={(e) => setSlotFilters({ ...slotFilters, type: e.target.value })}
+                      onChange={(e) => {
+                        setSlotFilters({ ...slotFilters, type: e.target.value });
+                      }}
                     >
                       <option value="">جميع الأنواع</option>
                       <option value="single">مرة واحدة</option>
@@ -1054,7 +1255,9 @@ function AdminDashboard({ setIsAuthenticated }) {
                     <input
                       type="time"
                       value={slotFilters.startTime}
-                      onChange={(e) => setSlotFilters({ ...slotFilters, startTime: e.target.value })}
+                      onChange={(e) => {
+                        setSlotFilters({ ...slotFilters, startTime: e.target.value });
+                      }}
                       placeholder="تصفية بوقت البداية"
                     />
                   </div>
@@ -1064,7 +1267,9 @@ function AdminDashboard({ setIsAuthenticated }) {
                     <input
                       type="time"
                       value={slotFilters.endTime}
-                      onChange={(e) => setSlotFilters({ ...slotFilters, endTime: e.target.value })}
+                      onChange={(e) => {
+                        setSlotFilters({ ...slotFilters, endTime: e.target.value });
+                      }}
                       placeholder="تصفية بوقت النهاية"
                     />
                   </div>
@@ -1074,7 +1279,9 @@ function AdminDashboard({ setIsAuthenticated }) {
                     <input
                       type="text"
                       value={slotFilters.serviceName}
-                      onChange={(e) => setSlotFilters({ ...slotFilters, serviceName: e.target.value })}
+                      onChange={(e) => {
+                        setSlotFilters({ ...slotFilters, serviceName: e.target.value });
+                      }}
                       placeholder="بحث بالخدمة"
                     />
                   </div>
@@ -1084,16 +1291,122 @@ function AdminDashboard({ setIsAuthenticated }) {
                     <input
                       type="text"
                       value={slotFilters.providerName}
-                      onChange={(e) => setSlotFilters({ ...slotFilters, providerName: e.target.value })}
+                      onChange={(e) => {
+                        setSlotFilters({ ...slotFilters, providerName: e.target.value });
+                      }}
                       placeholder="بحث بالخادم"
                     />
                   </div>
+                </div>
 
+                {/* Advanced Date Range & Day Filters */}
+                <div className="advanced-filters">
+                  <h4 style={{ margin: '1.5rem 0 1rem', fontSize: '1rem', fontWeight: '600', color: '#667eea' }}>
+                    📅 تصفية متقدمة - بفترة زمنية وأيام محددة
+                  </h4>
+                  <div className="date-range-filters">
+                    <div className="filter-row">
+                      <div className="filter-item">
+                        <label>من تاريخ</label>
+                        <input
+                          type="date"
+                          value={slotFilters.dateRangeStart}
+                          onChange={(e) => {
+                            setSlotFilters({ ...slotFilters, dateRangeStart: e.target.value, date: '' });
+                          }}
+                          placeholder="تاريخ البداية"
+                        />
+                      </div>
+                      <div className="filter-item">
+                        <label>إلى تاريخ</label>
+                        <input
+                          type="date"
+                          value={slotFilters.dateRangeEnd}
+                          onChange={(e) => {
+                            setSlotFilters({ ...slotFilters, dateRangeEnd: e.target.value, date: '' });
+                          }}
+                          placeholder="تاريخ النهاية"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="days-of-week-filter">
+                      <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#555', marginBottom: '0.5rem', display: 'block' }}>
+                        اختر الأيام (داخل الفترة):
+                      </label>
+                      <div className="days-checkboxes">
+                        {[
+                          { value: 0, label: 'الأحد', shortLabel: 'أحد' },
+                          { value: 1, label: 'الاثنين', shortLabel: 'اثنين' },
+                          { value: 2, label: 'الثلاثاء', shortLabel: 'ثلاثاء' },
+                          { value: 3, label: 'الأربعاء', shortLabel: 'أربعاء' },
+                          { value: 4, label: 'الخميس', shortLabel: 'خميس' },
+                          { value: 5, label: 'الجمعة', shortLabel: 'جمعة' },
+                          { value: 6, label: 'السبت', shortLabel: 'سبت' }
+                        ].map((day) => (
+                          <label key={day.value} className="day-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={slotFilters.daysOfWeek.includes(day.value)}
+                              onChange={() => toggleDayOfWeek(day.value)}
+                            />
+                            <span>{day.shortLabel}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {slotFilters.daysOfWeek.length > 0 && (
+                        <div className="selected-days-info">
+                          ✓ تم اختيار {slotFilters.daysOfWeek.length} يوم
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="filters-actions">
                   <div className="filter-stats">
                     <span className="stats-badge">
-                      عرض {getFilteredSlots().all.length} من {slots.length} موعد
+                      عرض {slotsPagination.total} موعد
                     </span>
                   </div>
+                  <button className="btn-apply-filters" onClick={applySlotFilters}>
+                    🔍 تطبيق التصفية
+                  </button>
+                </div>
+              </div>
+
+              {/* Bulk Actions Bar */}
+              {selectedSlots.length > 0 && (
+                <div className="bulk-actions-bar">
+                  <div className="bulk-selection-info">
+                    <span className="selected-count">✓ تم اختيار {selectedSlots.length} موعد</span>
+                    <button className="btn-clear-selection" onClick={clearSelection}>
+                      <X size={14} /> إلغاء التحديد
+                    </button>
+                  </div>
+                  <div className="bulk-action-buttons">
+                    <button className="btn-bulk-assign" onClick={handleBulkAssignSelected}>
+                      ✏️ تعيين للمختارة
+                    </button>
+                    <button className="btn-bulk-delete" onClick={handleBulkDeleteSelected}>
+                      <Trash2 size={16} /> حذف المختارة
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Bulk Actions for Filtered Results */}
+              <div className="filtered-actions-bar">
+                <div className="filtered-info">
+                  <span>إجراءات جماعية على الفلترة الحالية ({slotsPagination.total} موعد):</span>
+                </div>
+                <div className="filtered-action-buttons">
+                  <button className="btn-filtered-assign" onClick={handleBulkAssignFiltered}>
+                    ✏️ تعيين للفلترة الحالية
+                  </button>
+                  <button className="btn-filtered-delete" onClick={handleBulkDeleteFiltered}>
+                    <Trash2 size={16} /> حذف الفلترة الحالية
+                  </button>
                 </div>
               </div>
 
@@ -1101,6 +1414,14 @@ function AdminDashboard({ setIsAuthenticated }) {
                 <table className="slots-table">
                   <thead>
                     <tr>
+                      <th style={{ width: '40px' }}>
+                        <input
+                          type="checkbox"
+                          checked={slots.length > 0 && selectedSlots.length === slots.length}
+                          onChange={toggleSelectAll}
+                          title="تحديد الكل"
+                        />
+                      </th>
                       <th>المكان</th>
                       <th>التاريخ</th>
                       <th>الوقت</th>
@@ -1112,9 +1433,9 @@ function AdminDashboard({ setIsAuthenticated }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {getFilteredSlots().all.length === 0 ? (
+                    {slots.length === 0 ? (
                       <tr>
-                        <td colSpan="8" className="no-results">
+                        <td colSpan="9" className="no-results">
                           <div className="no-results-content">
                             <Calendar size={48} />
                             <p>لا توجد مواعيد تطابق التصفية</p>
@@ -1127,8 +1448,15 @@ function AdminDashboard({ setIsAuthenticated }) {
                         </td>
                       </tr>
                     ) : (
-                      getFilteredSlots().paginated.map((slot) => (
-                      <tr key={slot._id}>
+                      slots.map((slot) => (
+                      <tr key={slot._id} className={selectedSlots.includes(slot._id) ? 'selected-row' : ''}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selectedSlots.includes(slot._id)}
+                            onChange={() => toggleSlotSelection(slot._id)}
+                          />
+                        </td>
                         <td>{slot.roomId?.name || 'N/A'}</td>
                         <td>{new Date(slot.date).toLocaleDateString('ar-EG')}</td>
                         <td>{formatTimeRange(slot.startTime, slot.endTime)}</td>
@@ -1172,22 +1500,33 @@ function AdminDashboard({ setIsAuthenticated }) {
               </div>
 
               {/* Slots Pagination */}
-              {getFilteredSlots().totalPages > 1 && (
+              {slotsPagination.totalPages > 1 && (
                 <div className="pagination">
                   <button
                     className="pagination-btn"
-                    onClick={() => setSlotsCurrentPage(prev => Math.max(prev - 1, 1))}
+                    onClick={() => {
+                      const newPage = Math.max(slotsCurrentPage - 1, 1);
+                      setSlotsCurrentPage(newPage);
+                      loadSlots(newPage, slotFilters);
+                    }}
                     disabled={slotsCurrentPage === 1}
                   >
                     السابق
                   </button>
                   <span className="pagination-info">
-                    صفحة {slotsCurrentPage} من {getFilteredSlots().totalPages}
+                    صفحة {slotsCurrentPage} من {slotsPagination.totalPages}
+                    <small style={{ display: 'block', fontSize: '0.8em', color: '#666' }}>
+                      ({slotsPagination.total} موعد)
+                    </small>
                   </span>
                   <button
                     className="pagination-btn"
-                    onClick={() => setSlotsCurrentPage(prev => Math.min(prev + 1, getFilteredSlots().totalPages))}
-                    disabled={slotsCurrentPage === getFilteredSlots().totalPages}
+                    onClick={() => {
+                      const newPage = Math.min(slotsCurrentPage + 1, slotsPagination.totalPages);
+                      setSlotsCurrentPage(newPage);
+                      loadSlots(newPage, slotFilters);
+                    }}
+                    disabled={slotsCurrentPage === slotsPagination.totalPages}
                   >
                     التالي
                   </button>
@@ -1263,12 +1602,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                 <h2 className="section-title">سجل الحجوزات</h2>
               </div>
               <div className="bookings-history">
-                {(() => {
-                  const nonPendingBookings = bookings.filter(b => b.status !== 'pending');
-                  const indexOfLastBooking = bookingsCurrentPage * bookingsPerPage;
-                  const indexOfFirstBooking = indexOfLastBooking - bookingsPerPage;
-                  const currentBookings = nonPendingBookings.slice(indexOfFirstBooking, indexOfLastBooking);
-                  return currentBookings.map((booking) => (
+                {bookings.map((booking) => (
                   <div key={booking._id} className={`booking-card ${booking.status}`}>
                     <div className="booking-header">
                       <h4>{booking.userName}</h4>
@@ -1307,36 +1641,42 @@ function AdminDashboard({ setIsAuthenticated }) {
                       </button>
                     </div>
                   </div>
-                  ));
-                })()}
+                ))}
               </div>
 
               {/* Bookings Pagination */}
-              {(() => {
-                const nonPendingBookings = bookings.filter(b => b.status !== 'pending');
-                const totalPages = Math.ceil(nonPendingBookings.length / bookingsPerPage);
-                return totalPages > 1 ? (
-                  <div className="pagination">
-                    <button
-                      className="pagination-btn"
-                      onClick={() => setBookingsCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={bookingsCurrentPage === 1}
-                    >
-                      السابق
-                    </button>
-                    <span className="pagination-info">
-                      صفحة {bookingsCurrentPage} من {totalPages}
-                    </span>
-                    <button
-                      className="pagination-btn"
-                      onClick={() => setBookingsCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={bookingsCurrentPage === totalPages}
-                    >
-                      التالي
-                    </button>
-                  </div>
-                ) : null;
-              })()}
+              {bookingsPagination.totalPages > 1 && (
+                <div className="pagination">
+                  <button
+                    className="pagination-btn"
+                    onClick={() => {
+                      const newPage = Math.max(bookingsCurrentPage - 1, 1);
+                      setBookingsCurrentPage(newPage);
+                      loadBookings(newPage);
+                    }}
+                    disabled={bookingsCurrentPage === 1}
+                  >
+                    السابق
+                  </button>
+                  <span className="pagination-info">
+                    صفحة {bookingsCurrentPage} من {bookingsPagination.totalPages}
+                    <small style={{ display: 'block', fontSize: '0.8em', color: '#666' }}>
+                      ({bookingsPagination.total} حجز)
+                    </small>
+                  </span>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => {
+                      const newPage = Math.min(bookingsCurrentPage + 1, bookingsPagination.totalPages);
+                      setBookingsCurrentPage(newPage);
+                      loadBookings(newPage);
+                    }}
+                    disabled={bookingsCurrentPage === bookingsPagination.totalPages}
+                  >
+                    التالي
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1982,6 +2322,65 @@ function AdminDashboard({ setIsAuthenticated }) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Assign Modal */}
+      {showBulkAssignModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>
+                {bulkActionTarget === 'selected' 
+                  ? `✏️ تعيين خدمة وخادم (${selectedSlots.length} موعد)` 
+                  : `✏️ تعيين خدمة وخادم (${slotsPagination.total} موعد)`}
+              </h2>
+              <button onClick={() => setShowBulkAssignModal(false)}>
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmitBulkAssign} className="modal-form">
+              <div className="form-group">
+                <label>اسم الخدمة *</label>
+                <input
+                  type="text"
+                  value={bulkAssignForm.serviceName}
+                  onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, serviceName: e.target.value })}
+                  required
+                  placeholder="مثال: اجتماع، تدريب"
+                />
+              </div>
+              <div className="form-group">
+                <label>اسم الخادم *</label>
+                <input
+                  type="text"
+                  value={bulkAssignForm.providerName}
+                  onChange={(e) => setBulkAssignForm({ ...bulkAssignForm, providerName: e.target.value })}
+                  required
+                  placeholder="مثال: فيلوباتير ماجد"
+                />
+              </div>
+              
+              <div className="bulk-assign-info">
+                <div className="info-icon">ℹ️</div>
+                <p>
+                  {bulkActionTarget === 'selected' 
+                    ? `سيتم تعيين الخدمة والخادم لـ ${selectedSlots.length} موعد مختار وتغيير حالتهم إلى "محجوز"`
+                    : `سيتم تعيين الخدمة والخادم لجميع المواعيد في الفلترة الحالية (${slotsPagination.total} موعد) وتغيير حالتهم إلى "محجوز"`
+                  }
+                </p>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setShowBulkAssignModal(false)}>
+                  إلغاء
+                </button>
+                <button type="submit" className="btn-primary">
+                  ✅ تعيين الآن
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

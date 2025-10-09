@@ -46,20 +46,22 @@ export const roomGroupAPI = {
 
 // Slot APIs
 export const slotAPI = {
-  getAll: () => api.get('/slots'),
+  getAll: (params = {}) => api.get('/slots', { params }),
   getByRoom: (roomId, date) => {
     const params = date ? { date } : {};
     return api.get(`/slots/room/${roomId}`, { params });
   },
   create: (data) => api.post('/slots', data),
   bulkCreate: (data) => api.post('/slots/bulk', data),
+  bulkUpdate: (data) => api.put('/slots/bulk-update', data),
+  bulkDelete: (data) => api.post('/slots/bulk-delete', data),
   update: (id, data) => api.put(`/slots/${id}`, data),
   delete: (id) => api.delete(`/slots/${id}`)
 };
 
 // Booking APIs
 export const bookingAPI = {
-  getAll: () => api.get('/bookings'),
+  getAll: (params = {}) => api.get('/bookings', { params }),
   getPending: () => api.get('/bookings/pending'),
   create: (data) => api.post('/bookings', data),
   approve: (id) => api.put(`/bookings/${id}/approve`),
