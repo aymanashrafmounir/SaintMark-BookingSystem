@@ -798,16 +798,21 @@ function AdminDashboard({ setIsAuthenticated }) {
     });
   }, [slotFilters]);
 
-  // Sorting function
+  // Sorting function with 3 states: desc → asc → disable
   const handleSort = useCallback((key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
+    if (sortConfig.key !== key) {
+      // New column - start with desc
+      setSortConfig({ key, direction: 'desc' });
+    } else if (sortConfig.direction === 'desc') {
+      // desc → asc
+      setSortConfig({ key, direction: 'asc' });
+    } else if (sortConfig.direction === 'asc') {
+      // asc → disable (clear sorting)
+      setSortConfig({ key: null, direction: 'asc' });
     }
-    setSortConfig({ key, direction });
   }, [sortConfig]);
 
-  // Sort slots data
+  // Sort slots data with improved data type handling
   const sortedSlots = useMemo(() => {
     if (!sortConfig.key) return slots;
 
@@ -815,19 +820,30 @@ function AdminDashboard({ setIsAuthenticated }) {
       let aValue = a[sortConfig.key];
       let bValue = b[sortConfig.key];
 
+      // Handle null/undefined values
+      if (aValue === null || aValue === undefined) aValue = '';
+      if (bValue === null || bValue === undefined) bValue = '';
+
       // Handle different data types
       if (sortConfig.key === 'date') {
+        // Date sorting: newest first (desc) or oldest first (asc)
         aValue = new Date(aValue);
         bValue = new Date(bValue);
       } else if (sortConfig.key === 'startTime' || sortConfig.key === 'endTime') {
-        // Convert time strings to comparable format
+        // Time sorting: convert "HH:MM" to comparable format
         aValue = aValue.replace(':', '');
         bValue = bValue.replace(':', '');
-      } else if (typeof aValue === 'string') {
+      } else if (sortConfig.key === 'roomName' || sortConfig.key === 'serviceName' || sortConfig.key === 'providerName') {
+        // Alphabetical sorting for text fields
         aValue = aValue.toLowerCase();
         bValue = bValue.toLowerCase();
+      } else if (sortConfig.key === 'type' || sortConfig.key === 'status') {
+        // Status/Type sorting: keep original case for consistency
+        aValue = aValue.toString();
+        bValue = bValue.toString();
       }
 
+      // Compare values
       if (aValue < bValue) {
         return sortConfig.direction === 'asc' ? -1 : 1;
       }
@@ -838,12 +854,18 @@ function AdminDashboard({ setIsAuthenticated }) {
     });
   }, [slots, sortConfig]);
 
-  // Helper function to render sort icon
+  // Helper function to render sort icon with 3 states
   const renderSortIcon = (columnKey) => {
     if (sortConfig.key !== columnKey) {
-      return <span style={{ opacity: 0.3 }}>↕</span>;
+      return <span style={{ opacity: 0.3, fontSize: '12px' }}>↕</span>;
     }
-    return sortConfig.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />;
+    if (sortConfig.direction === 'desc') {
+      return <ChevronDown size={16} style={{ color: '#007bff' }} />;
+    }
+    if (sortConfig.direction === 'asc') {
+      return <ChevronUp size={16} style={{ color: '#007bff' }} />;
+    }
+    return <span style={{ opacity: 0.3, fontSize: '12px' }}>↕</span>;
   };
 
   // Apply filters - trigger server-side reload (only when button is clicked)
@@ -1495,6 +1517,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         className="sortable-header" 
                         onClick={() => handleSort('roomName')}
                         style={{ cursor: 'pointer' }}
+                        title="اضغط للترتيب: تنازلي → تصاعدي → إلغاء"
                       >
                         المكان {renderSortIcon('roomName')}
                       </th>
@@ -1502,6 +1525,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         className="sortable-header" 
                         onClick={() => handleSort('date')}
                         style={{ cursor: 'pointer' }}
+                        title="اضغط للترتيب: الأحدث → الأقدم → إلغاء"
                       >
                         التاريخ {renderSortIcon('date')}
                       </th>
@@ -1509,6 +1533,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         className="sortable-header" 
                         onClick={() => handleSort('startTime')}
                         style={{ cursor: 'pointer' }}
+                        title="اضغط للترتيب: الأحدث → الأقدم → إلغاء"
                       >
                         الوقت {renderSortIcon('startTime')}
                       </th>
@@ -1516,6 +1541,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         className="sortable-header" 
                         onClick={() => handleSort('serviceName')}
                         style={{ cursor: 'pointer' }}
+                        title="اضغط للترتيب: تنازلي → تصاعدي → إلغاء"
                       >
                         الخدمة {renderSortIcon('serviceName')}
                       </th>
@@ -1523,6 +1549,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         className="sortable-header" 
                         onClick={() => handleSort('providerName')}
                         style={{ cursor: 'pointer' }}
+                        title="اضغط للترتيب: تنازلي → تصاعدي → إلغاء"
                       >
                         الخادم {renderSortIcon('providerName')}
                       </th>
@@ -1530,6 +1557,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         className="sortable-header" 
                         onClick={() => handleSort('type')}
                         style={{ cursor: 'pointer' }}
+                        title="اضغط للترتيب: تنازلي → تصاعدي → إلغاء"
                       >
                         النوع {renderSortIcon('type')}
                       </th>
@@ -1537,6 +1565,7 @@ function AdminDashboard({ setIsAuthenticated }) {
                         className="sortable-header" 
                         onClick={() => handleSort('status')}
                         style={{ cursor: 'pointer' }}
+                        title="اضغط للترتيب: تنازلي → تصاعدي → إلغاء"
                       >
                         الحالة {renderSortIcon('status')}
                       </th>
