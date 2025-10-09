@@ -392,15 +392,28 @@ function UserPortal() {
 
   return (
     <div className="user-portal">
-      <header className="portal-header">
-        <div className="header-container">
-          <img src="/Logo.jpg" alt="Logo" className="header-logo" />
-          <div className="header-left">
-            <h1>نظام حجز الأماكن</h1>
-            <p>اختر مكان وتاريخ لعرض الأوقات المتاحة</p>
-          </div>
+      {/* Hero Section */}
+      <section className="hero-section">
+        <div className="hero-content">
+          <img src="/Logo.jpg" alt="Logo" className="hero-logo" />
+          <h1 className="hero-title">نظام حجز الأماكن</h1>
+          <p className="hero-subtitle">اختر مكان وتاريخ لعرض الأوقات المتاحة</p>
+          <button 
+            className="scroll-down-btn"
+            onClick={() => {
+              document.querySelector('.filters-section').scrollIntoView({ 
+                behavior: 'smooth' 
+              });
+            }}
+          >
+            <span>ابدأ الحجز</span>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M7 10L12 15L17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         </div>
-      </header>
+        <div className="hero-background"></div>
+      </section>
 
       <div className="portal-container">
         {rooms.length === 0 ? (
