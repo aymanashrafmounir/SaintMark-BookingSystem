@@ -262,13 +262,51 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Bulk update slots (admin only) - Update multiple slots with filters
+// Bulk update slots (admin only) - Update multiple slots with filters or slot IDs
 router.put('/bulk-update', authMiddleware, async (req, res) => {
   try {
-    const { filters, updates } = req.body;
+    const { filters, updates, slotIds: requestedSlotIds } = req.body;
 
+    // If slotIds are provided, update specific slots
+    if (requestedSlotIds && Array.isArray(requestedSlotIds) && requestedSlotIds.length > 0) {
+      const updateData = {};
+      
+      // Handle different types of updates
+      if (updates.type) {
+        updateData.type = updates.type;
+      }
+      
+      if (updates.serviceName !== undefined) {
+        updateData.serviceName = updates.serviceName;
+      }
+      
+      if (updates.providerName !== undefined) {
+        updateData.providerName = updates.providerName;
+      }
+      
+      if (updates.status) {
+        updateData.status = updates.status;
+      }
+      
+      if (updates.bookedBy !== undefined) {
+        updateData.bookedBy = updates.bookedBy;
+      }
+
+      const result = await Slot.updateMany(
+        { _id: { $in: requestedSlotIds } },
+        { $set: updateData }
+      );
+
+      return res.json({
+        success: true,
+        count: result.modifiedCount,
+        message: `Updated ${result.modifiedCount} slots`
+      });
+    }
+
+    // Original filter-based bulk update logic
     if (!updates || !updates.serviceName || !updates.providerName) {
-      return res.status(400).json({ error: 'Service name and provider name are required' });
+      return res.status(400).json({ error: 'Service name and provider name are required for filter-based updates' });
     }
 
     // Build query from filters
@@ -320,9 +358,9 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       bookedBy: updates.providerName
     };
 
-    const slotIds = slotsToUpdate.map(slot => slot._id);
+    const slotsToUpdateIds = slotsToUpdate.map(slot => slot._id);
     const result = await Slot.updateMany(
-      { _id: { $in: slotIds } },
+      { _id: { $in: slotsToUpdateIds } },
       { $set: updateData }
     );
 
@@ -384,8 +422,8 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     }
 
     // Delete all matching slots
-    const slotIds = slotsToDelete.map(slot => slot._id);
-    const result = await Slot.deleteMany({ _id: { $in: slotIds } });
+    const slotsToDeleteIds = slotsToDelete.map(slot => slot._id);
+    const result = await Slot.deleteMany({ _id: { $in: slotsToDeleteIds } });
 
     res.json({
       success: true,

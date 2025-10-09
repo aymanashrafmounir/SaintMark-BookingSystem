@@ -590,7 +590,7 @@
   flex-wrap: wrap;
 }
 
-.btn-bulk-assign, .btn-bulk-delete {
+.btn-bulk-assign, .btn-bulk-delete, .btn-bulk-weekly, .btn-bulk-available {
   padding: 0.625rem 1.25rem;
   border-radius: 8px;
   border: none;
@@ -612,6 +612,28 @@
 .btn-bulk-assign:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+}
+
+.btn-bulk-weekly {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.btn-bulk-weekly:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.5);
+}
+
+.btn-bulk-available {
+  background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);
+}
+
+.btn-bulk-available:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(23, 162, 184, 0.5);
 }
 
 .btn-bulk-delete {
@@ -1403,6 +1425,8 @@
 
   .btn-bulk-assign,
   .btn-bulk-delete,
+  .btn-bulk-weekly,
+  .btn-bulk-available,
   .btn-filtered-assign,
   .btn-filtered-delete {
     width: 100%;

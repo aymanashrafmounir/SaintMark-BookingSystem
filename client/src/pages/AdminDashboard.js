@@ -1034,6 +1034,91 @@ function AdminDashboard({ setIsAuthenticated }) {
     setShowBulkAssignModal(true);
   };
 
+  // Bulk make selected slots weekly
+  const handleBulkMakeWeekly = async () => {
+    if (selectedSlots.length === 0) {
+      toast.error('لم يتم اختيار أي مواعيد');
+      return;
+    }
+
+    openConfirmModal(
+      '📅 تحويل المواعيد المختارة إلى أسبوعية',
+      `هل أنت متأكد من تحويل ${selectedSlots.length} موعد إلى أسبوعية؟`,
+      async () => {
+        try {
+          const response = await fetch('/api/slots/bulk-update', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+              slotIds: selectedSlots,
+              updates: { type: 'weekly' }
+            })
+          });
+
+          if (response.ok) {
+            toast.success(`تم تحويل ${selectedSlots.length} موعد إلى أسبوعية بنجاح`);
+            setSelectedSlots([]);
+            loadSlots(slotsCurrentPage, slotFilters);
+          } else {
+            const error = await response.json();
+            toast.error(error.error || 'فشل في تحويل المواعيد');
+          }
+        } catch (error) {
+          console.error('Error making slots weekly:', error);
+          toast.error('حدث خطأ أثناء تحويل المواعيد');
+        }
+      }
+    );
+  };
+
+  // Bulk make selected slots available
+  const handleBulkMakeAvailable = async () => {
+    if (selectedSlots.length === 0) {
+      toast.error('لم يتم اختيار أي مواعيد');
+      return;
+    }
+
+    openConfirmModal(
+      '✅ جعل المواعيد المختارة متاحة',
+      `هل أنت متأكد من جعل ${selectedSlots.length} موعد متاح للحجز؟`,
+      async () => {
+        try {
+          const response = await fetch('/api/slots/bulk-update', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+              slotIds: selectedSlots,
+              updates: { 
+                serviceName: '', 
+                providerName: '', 
+                status: 'available',
+                bookedBy: null
+              }
+            })
+          });
+
+          if (response.ok) {
+            toast.success(`تم جعل ${selectedSlots.length} موعد متاح بنجاح`);
+            setSelectedSlots([]);
+            loadSlots(slotsCurrentPage, slotFilters);
+          } else {
+            const error = await response.json();
+            toast.error(error.error || 'فشل في جعل المواعيد متاحة');
+          }
+        } catch (error) {
+          console.error('Error making slots available:', error);
+          toast.error('حدث خطأ أثناء جعل المواعيد متاحة');
+        }
+      }
+    );
+  };
+
   // Bulk assign for filtered slots
   const handleBulkAssignFiltered = () => {
     if (slotsPagination.total === 0) {
@@ -1532,6 +1617,12 @@ function AdminDashboard({ setIsAuthenticated }) {
                     <button className="btn-bulk-assign" onClick={handleBulkAssignSelected}>
                       ✏️ تعيين للمختارة
                     </button>
+                    <button className="btn-bulk-weekly" onClick={handleBulkMakeWeekly}>
+                      📅 جعل أسبوعية
+                    </button>
+                    <button className="btn-bulk-available" onClick={handleBulkMakeAvailable}>
+                      ✅ جعل متاحة
+                    </button>
                     <button className="btn-bulk-delete" onClick={handleBulkDeleteSelected}>
                       <Trash2 size={16} /> حذف المختارة
                     </button>
@@ -1683,6 +1774,12 @@ function AdminDashboard({ setIsAuthenticated }) {
                       ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="filter-helper-message">
+                <Calendar size={32} />
+                <p>👆 اختر الفلاتر أعلاه ثم اضغط "تطبيق التصفية" لعرض المواعيد</p>
+                <small>يمكنك ترك الفلاتر فارغة لعرض جميع المواعيد</small>
               </div>
 
               {/* Slots Pagination */}
