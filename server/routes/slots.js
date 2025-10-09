@@ -39,7 +39,9 @@ router.get('/public', async (req, res) => {
       roomId, 
       roomIds, // comma-separated room IDs for group filtering
       dateRangeStart,
-      dateRangeEnd
+      dateRangeEnd,
+      startTime,
+      endTime
     } = req.query;
 
     // Build filter query
@@ -61,6 +63,10 @@ router.get('/public', async (req, res) => {
       endDate.setHours(23, 59, 59, 999);
       filter.date = { $gte: startDate, $lte: endDate };
     }
+    
+    // Time filtering
+    if (startTime) filter.startTime = startTime;
+    if (endTime) filter.endTime = endTime;
 
     // Calculate pagination
     const pageNumber = parseInt(page);
