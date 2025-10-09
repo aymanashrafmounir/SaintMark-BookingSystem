@@ -26,6 +26,10 @@ button:disabled {
   font-size: 0.875rem;
   font-weight: 500;
   box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -43,6 +47,10 @@ button:disabled {
   font-size: 0.875rem;
   font-weight: 500;
   box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -60,6 +68,10 @@ button:disabled {
   font-size: 0.875rem;
   font-weight: 500;
   box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-success:hover:not(:disabled) {

@@ -86,10 +86,12 @@
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
   margin: 0 auto;
   transition: all 0.3s ease;
   box-shadow: 0 8px 32px rgba(26, 115, 232, 0.3);
+  text-align: center;
 }
 
 .scroll-down-btn:hover {
@@ -257,6 +259,7 @@
   border-radius: 4px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
   font-weight: 500;
   font-size: 0.875rem;
@@ -264,6 +267,7 @@
   white-space: nowrap;
   transition: all 0.2s ease;
   box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  text-align: center;
 }
 
 .btn-refresh:hover {
@@ -495,6 +499,7 @@
   font-size: 0.875rem;
   transition: all 0.2s ease;
   box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  text-align: center;
 }
 
 .book-btn:hover {
