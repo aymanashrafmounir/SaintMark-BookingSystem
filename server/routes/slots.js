@@ -282,56 +282,6 @@ router.post('/bulk', authMiddleware, async (req, res) => {
   }
 });
 
-// Update slot (admin only)
-router.put('/:id', authMiddleware, async (req, res) => {
-  try {
-    const { startTime, endTime, serviceName, providerName, date, type } = req.body;
-    
-    const slot = await Slot.findById(req.params.id);
-    if (!slot) {
-      return res.status(404).json({ error: 'Slot not found' });
-    }
-
-    if (startTime) slot.startTime = startTime;
-    if (endTime) slot.endTime = endTime;
-    
-    // Update serviceName and providerName (can be empty)
-    if (serviceName !== undefined) slot.serviceName = serviceName || '';
-    if (providerName !== undefined) slot.providerName = providerName || '';
-    
-    if (date) slot.date = new Date(date);
-    if (type) slot.type = type;
-    
-    // Update status based on whether service/provider are filled
-    const hasServiceProvider = slot.serviceName && slot.providerName;
-    slot.status = hasServiceProvider ? 'booked' : 'available';
-    slot.bookedBy = hasServiceProvider ? slot.providerName : null;
-
-    await slot.save();
-    const updatedSlot = await Slot.findById(slot._id).populate('roomId', 'name isEnabled');
-    res.json(updatedSlot);
-  } catch (error) {
-    console.error('Update slot error:', error);
-    res.status(500).json({ error: 'Failed to update slot' });
-  }
-});
-
-// Delete slot (admin only)
-router.delete('/:id', authMiddleware, async (req, res) => {
-  try {
-    const slot = await Slot.findById(req.params.id);
-    if (!slot) {
-      return res.status(404).json({ error: 'Slot not found' });
-    }
-
-    await Slot.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: 'Slot deleted successfully' });
-  } catch (error) {
-    console.error('Delete slot error:', error);
-    res.status(500).json({ error: 'Failed to delete slot' });
-  }
-});
-
 // Bulk update slots (admin only) - Update multiple slots with filters or slot IDs
 router.put('/bulk-update', authMiddleware, async (req, res) => {
   try {
@@ -442,6 +392,56 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Bulk update slots error:', error);
     res.status(500).json({ error: 'Failed to update slots' });
+  }
+});
+
+// Update slot (admin only)
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { startTime, endTime, serviceName, providerName, date, type } = req.body;
+    
+    const slot = await Slot.findById(req.params.id);
+    if (!slot) {
+      return res.status(404).json({ error: 'Slot not found' });
+    }
+
+    if (startTime) slot.startTime = startTime;
+    if (endTime) slot.endTime = endTime;
+    
+    // Update serviceName and providerName (can be empty)
+    if (serviceName !== undefined) slot.serviceName = serviceName || '';
+    if (providerName !== undefined) slot.providerName = providerName || '';
+    
+    if (date) slot.date = new Date(date);
+    if (type) slot.type = type;
+    
+    // Update status based on whether service/provider are filled
+    const hasServiceProvider = slot.serviceName && slot.providerName;
+    slot.status = hasServiceProvider ? 'booked' : 'available';
+    slot.bookedBy = hasServiceProvider ? slot.providerName : null;
+
+    await slot.save();
+    const updatedSlot = await Slot.findById(slot._id).populate('roomId', 'name isEnabled');
+    res.json(updatedSlot);
+  } catch (error) {
+    console.error('Update slot error:', error);
+    res.status(500).json({ error: 'Failed to update slot' });
+  }
+});
+
+// Delete slot (admin only)
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const slot = await Slot.findById(req.params.id);
+    if (!slot) {
+      return res.status(404).json({ error: 'Slot not found' });
+    }
+
+    await Slot.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Slot deleted successfully' });
+  } catch (error) {
+    console.error('Delete slot error:', error);
+    res.status(500).json({ error: 'Failed to delete slot' });
   }
 });
 
