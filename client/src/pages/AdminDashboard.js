@@ -712,6 +712,20 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   };
 
+  const handleClearBookingsHistory = async () => {
+    try {
+      // Delete all bookings from database
+      const deletePromises = bookings.map(booking => bookingAPI.delete(booking._id));
+      await Promise.all(deletePromises);
+      
+      toast.success(`تم حذف جميع الحجوزات (${bookings.length} حجز) بنجاح!`);
+      loadBookings(); // Reload bookings to update the list
+    } catch (error) {
+      console.error('Error clearing bookings history:', error);
+      toast.error('فشل حذف سجل الحجوزات');
+    }
+  };
+
   const handleApproveBooking = async (id) => {
     try {
       await bookingAPI.approve(id);
@@ -1772,6 +1786,19 @@ function AdminDashboard({ setIsAuthenticated }) {
 
               <div className="section-header">
                 <h2 className="section-title">سجل الحجوزات</h2>
+                {bookings.length > 0 && (
+                  <button 
+                    className="btn-danger btn-clear-history"
+                    onClick={() => openConfirmModal(
+                      'مسح سجل الحجوزات',
+                      `هل أنت متأكد من حذف جميع الحجوزات (${bookings.length} حجز)؟ هذا الإجراء لا يمكن التراجع عنه.`,
+                      handleClearBookingsHistory
+                    )}
+                    title="حذف جميع الحجوزات من قاعدة البيانات"
+                  >
+                    <Trash2 size={16} /> مسح السجل
+                  </button>
+                )}
               </div>
               <div className="bookings-history">
                 {bookings.map((booking) => (
