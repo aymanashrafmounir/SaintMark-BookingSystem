@@ -31,8 +31,8 @@ const formatTimeRange = (startTime, endTime) => {
   return `\u202A${start}\u202C → \u202A${end}\u202C`;
 };
 
-// Time slot options
-const timeSlotOptions = [
+// Predefined time slots
+const TIME_SLOTS = [
   { value: '10:00-12:00', label: '10:00 ص → 12:00 م' },
   { value: '12:00-14:00', label: '12:00 م → 2:00 م' },
   { value: '14:00-16:00', label: '2:00 م → 4:00 م' },
@@ -117,25 +117,28 @@ function UserPortal() {
     }
   }, []);
 
-  const loadSlotsForDateRange = useCallback(async (roomId, date, timeSlot = '', append = false, page = 1) => {
+  const loadSlotsForDateAndTime = useCallback(async (roomId, date, timeSlot, append = false, page = 1) => {
     try {
       setLoadingSlots(true);
+      
+      if (!timeSlot) {
+        setSlots([]);
+        setSlotsPagination({ total: 0, page: 1, limit: 10, totalPages: 0 });
+        return;
+      }
+      
+      const [startTime, endTime] = timeSlot.split('-');
       
       // Use server-side pagination
       const params = {
         roomId,
         dateRangeStart: date,
-        dateRangeEnd: date, // Same date for single day
+        dateRangeEnd: date,
+        startTime,
+        endTime,
         page,
         limit: 10
       };
-      
-      // Add time filter if selected
-      if (timeSlot) {
-        const [startTime, endTime] = timeSlot.split('-');
-        params.startTime = startTime;
-        params.endTime = endTime;
-      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -149,24 +152,27 @@ function UserPortal() {
     }
   }, []);
 
-  const loadAllSlotsForDateRange = useCallback(async (date, timeSlot = '', append = false, page = 1) => {
+  const loadAllSlotsForDateAndTime = useCallback(async (date, timeSlot, append = false, page = 1) => {
     try {
       setLoadingSlots(true);
+      
+      if (!timeSlot) {
+        setSlots([]);
+        setSlotsPagination({ total: 0, page: 1, limit: 10, totalPages: 0 });
+        return;
+      }
+      
+      const [startTime, endTime] = timeSlot.split('-');
       
       // Use server-side pagination for all slots
       const params = {
         dateRangeStart: date,
-        dateRangeEnd: date, // Same date for single day
+        dateRangeEnd: date,
+        startTime,
+        endTime,
         page,
         limit: 10
       };
-      
-      // Add time filter if selected
-      if (timeSlot) {
-        const [startTime, endTime] = timeSlot.split('-');
-        params.startTime = startTime;
-        params.endTime = endTime;
-      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -181,31 +187,34 @@ function UserPortal() {
     }
   }, []);
 
-  const loadSlotsForGroup = useCallback(async (group, date, timeSlot = '', append = false, page = 1) => {
+  const loadSlotsForGroup = useCallback(async (group, date, timeSlot, append = false, page = 1) => {
     try {
       if (!group.rooms || group.rooms.length === 0) {
         setSlots([]);
         return;
       }
       
+      if (!timeSlot) {
+        setSlots([]);
+        setSlotsPagination({ total: 0, page: 1, limit: 10, totalPages: 0 });
+        return;
+      }
+      
       setLoadingSlots(true);
+      
+      const [startTime, endTime] = timeSlot.split('-');
       
       // Use server-side pagination for group slots
       const roomIds = group.rooms.map(room => room._id);
       const params = {
         roomIds: roomIds.join(','),
         dateRangeStart: date,
-        dateRangeEnd: date, // Same date for single day
+        dateRangeEnd: date,
+        startTime,
+        endTime,
         page,
         limit: 10
       };
-      
-      // Add time filter if selected
-      if (timeSlot) {
-        const [startTime, endTime] = timeSlot.split('-');
-        params.startTime = startTime;
-        params.endTime = endTime;
-      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -238,42 +247,42 @@ function UserPortal() {
     socketService.onBookingApproved((booking) => {
       toast.success('تمت الموافقة على حجز!');
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(selectedDate, selectedTimeSlot);
+        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
       } else if (selectedRoom?.isGroup) {
         loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
       } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot);
+        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
       }
     });
 
     socketService.onBookingRejected(() => {
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(selectedDate, selectedTimeSlot);
+        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
       } else if (selectedRoom?.isGroup) {
         loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
       } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot);
+        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
       }
     });
-  }, [loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
+  }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
 
   // Load initial slots (first page only)
   useEffect(() => {
-    if (selectedDate && rooms.length > 0) {
+    if (selectedDate && selectedTimeSlot && rooms.length > 0) {
       setCurrentSlotsPage(1);
       setSlots([]); // Clear previous slots
       // Reset pagination total immediately when filters change
       setSlotsPagination(prev => ({ ...prev, total: 0 }));
       
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(selectedDate, selectedTimeSlot, false, 1);
+        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
       } else if (selectedRoom?.isGroup) {
         loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
       } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
+        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
       }
     }
-  }, [selectedRoom, selectedDate, selectedTimeSlot, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup]);
+  }, [selectedRoom, selectedDate, selectedTimeSlot, rooms, loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup]);
 
   // Function to load more slots (pagination)
   const loadMoreSlots = useCallback(() => {
@@ -285,15 +294,15 @@ function UserPortal() {
     }
     
     if (selectedRoom === 'all') {
-      loadAllSlotsForDateRange(selectedDate, selectedTimeSlot, true, nextPage);
+      loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, true, nextPage);
     } else if (selectedRoom?.isGroup) {
       loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, true, nextPage);
     } else if (selectedRoom) {
-      loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot, true, nextPage);
+      loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, true, nextPage);
     }
     
     setCurrentSlotsPage(nextPage);
-  }, [currentSlotsPage, slotsPagination.totalPages, selectedDate, selectedTimeSlot, selectedRoom, loadAllSlotsForDateRange, loadSlotsForGroup, loadSlotsForDateRange]);
+  }, [currentSlotsPage, slotsPagination.totalPages, selectedDate, selectedTimeSlot, selectedRoom, loadAllSlotsForDateAndTime, loadSlotsForGroup, loadSlotsForDateAndTime]);
 
   const hasMoreSlots = useCallback(() => {
     return currentSlotsPage < slotsPagination.totalPages;
@@ -352,11 +361,11 @@ function UserPortal() {
       
       // Reload slots based on current selection
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(selectedDate, selectedTimeSlot);
+        loadAllSlotsForDateRange(startDate, endDate);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
+        loadSlotsForGroup(selectedRoom, startDate, endDate);
       } else {
-        loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot);
+        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
       }
     } catch (error) {
       toast.error(error.response?.data?.error || 'فشل إرسال طلب الحجز');
@@ -372,13 +381,13 @@ function UserPortal() {
     setCurrentSlotsPage(1);
     
     if (selectedRoom === 'all') {
-      loadAllSlotsForDateRange(selectedDate, selectedTimeSlot);
+      loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
       toast.info('تم تحديث الأوقات');
     } else if (selectedRoom?.isGroup) {
       loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
       toast.info('تم تحديث الأوقات');
     } else if (selectedRoom) {
-      loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot);
+      loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
       toast.info('تم تحديث الأوقات');
     }
   };
@@ -519,7 +528,7 @@ function UserPortal() {
 
               <div className="filter-group">
                 <label>
-                  <Calendar size={18} /> اختر التاريخ
+                  <Calendar size={18} /> التاريخ
                 </label>
                 <input
                   type="date"
@@ -532,17 +541,17 @@ function UserPortal() {
 
               <div className="filter-group">
                 <label>
-                  <Clock size={18} /> اختر الوقت
+                  <Clock size={18} /> الوقت
                 </label>
                 <select
                   value={selectedTimeSlot}
                   onChange={(e) => setSelectedTimeSlot(e.target.value)}
                   className="time-select"
                 >
-                  <option value="">جميع الأوقات</option>
-                  {timeSlotOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                  <option value="">اختر الوقت</option>
+                  {TIME_SLOTS.map(slot => (
+                    <option key={slot.value} value={slot.value}>
+                      {slot.label}
                     </option>
                   ))}
                 </select>

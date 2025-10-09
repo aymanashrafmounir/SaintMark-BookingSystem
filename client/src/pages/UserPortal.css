@@ -257,15 +257,6 @@
   border-color: #5f6368;
 }
 
-.time-select {
-  cursor: pointer;
-}
-
-.time-select option {
-  padding: 0.5rem;
-  font-size: 0.875rem;
-}
-
 .btn-refresh {
   background: #1a73e8;
   color: white;
