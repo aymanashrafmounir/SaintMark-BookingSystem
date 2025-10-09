@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import { 
   Home, 
@@ -10,7 +10,9 @@ import {
   Trash2,
   Check,
   X,
-  RefreshCw
+  RefreshCw,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { roomAPI, roomGroupAPI, slotAPI, bookingAPI, exportAPI } from '../services/api';
 import socketService from '../services/socket';
@@ -109,6 +111,12 @@ function AdminDashboard({ setIsAuthenticated }) {
     providerName: ''
   });
   const [bulkActionTarget, setBulkActionTarget] = useState('selected'); // 'selected' or 'filtered'
+
+  // Sorting for slots table
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: 'asc' // 'asc' or 'desc'
+  });
 
   // Pagination for bookings
   const [bookingsCurrentPage, setBookingsCurrentPage] = useState(1);
@@ -790,6 +798,54 @@ function AdminDashboard({ setIsAuthenticated }) {
     });
   }, [slotFilters]);
 
+  // Sorting function
+  const handleSort = useCallback((key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  }, [sortConfig]);
+
+  // Sort slots data
+  const sortedSlots = useMemo(() => {
+    if (!sortConfig.key) return slots;
+
+    return [...slots].sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      // Handle different data types
+      if (sortConfig.key === 'date') {
+        aValue = new Date(aValue);
+        bValue = new Date(bValue);
+      } else if (sortConfig.key === 'startTime' || sortConfig.key === 'endTime') {
+        // Convert time strings to comparable format
+        aValue = aValue.replace(':', '');
+        bValue = bValue.replace(':', '');
+      } else if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [slots, sortConfig]);
+
+  // Helper function to render sort icon
+  const renderSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return <span style={{ opacity: 0.3 }}>↕</span>;
+    }
+    return sortConfig.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />;
+  };
+
   // Apply filters - trigger server-side reload (only when button is clicked)
   const applySlotFilters = useCallback(() => {
     if (!hasActiveFilters() && slots.length === 0) {
@@ -1202,15 +1258,6 @@ function AdminDashboard({ setIsAuthenticated }) {
                 </button>
               </div>
 
-              {/* Helper message when no slots loaded yet */}
-              {slots.length === 0 && slotsPagination.total === 0 && (
-                <div className="filter-helper-message">
-                  <Calendar size={32} />
-                  <p>👆 اختر الفلاتر أعلاه ثم اضغط "تطبيق التصفية" لعرض المواعيد</p>
-                  <small>يمكنك ترك الفلاتر فارغة لعرض جميع المواعيد</small>
-                </div>
-              )}
-
               {/* Slot Filters */}
               <div className="filters-container">
                 <div className="filters-header">
@@ -1424,6 +1471,15 @@ function AdminDashboard({ setIsAuthenticated }) {
               </div>
 
               <div className="slots-table-container">
+                {/* Helper message when no slots loaded yet */}
+                {slots.length === 0 && slotsPagination.total === 0 && (
+                  <div className="filter-helper-message">
+                    <Calendar size={32} />
+                    <p>👆 اختر الفلاتر أعلاه ثم اضغط "تطبيق التصفية" لعرض المواعيد</p>
+                    <small>يمكنك ترك الفلاتر فارغة لعرض جميع المواعيد</small>
+                  </div>
+                )}
+                
                 <table className="slots-table">
                   <thead>
                     <tr>
@@ -1435,18 +1491,60 @@ function AdminDashboard({ setIsAuthenticated }) {
                           title="تحديد الكل"
                         />
                       </th>
-                      <th>المكان</th>
-                      <th>التاريخ</th>
-                      <th>الوقت</th>
-                      <th>الخدمة</th>
-                      <th>الخادم</th>
-                      <th>النوع</th>
-                      <th>الحالة</th>
+                      <th 
+                        className="sortable-header" 
+                        onClick={() => handleSort('roomName')}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        المكان {renderSortIcon('roomName')}
+                      </th>
+                      <th 
+                        className="sortable-header" 
+                        onClick={() => handleSort('date')}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        التاريخ {renderSortIcon('date')}
+                      </th>
+                      <th 
+                        className="sortable-header" 
+                        onClick={() => handleSort('startTime')}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        الوقت {renderSortIcon('startTime')}
+                      </th>
+                      <th 
+                        className="sortable-header" 
+                        onClick={() => handleSort('serviceName')}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        الخدمة {renderSortIcon('serviceName')}
+                      </th>
+                      <th 
+                        className="sortable-header" 
+                        onClick={() => handleSort('providerName')}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        الخادم {renderSortIcon('providerName')}
+                      </th>
+                      <th 
+                        className="sortable-header" 
+                        onClick={() => handleSort('type')}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        النوع {renderSortIcon('type')}
+                      </th>
+                      <th 
+                        className="sortable-header" 
+                        onClick={() => handleSort('status')}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        الحالة {renderSortIcon('status')}
+                      </th>
                       <th>الإجراءات</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {slots.map((slot) => (
+                    {sortedSlots.map((slot) => (
                       <tr key={slot._id} className={selectedSlots.includes(slot._id) ? 'selected-row' : ''}>
                         <td>
                           <input

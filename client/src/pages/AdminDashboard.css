@@ -1824,3 +1824,24 @@
   }
 }
 
+/* Sortable table headers */
+.sortable-header {
+  position: relative;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.sortable-header:hover {
+  background-color: #f8f9fa;
+}
+
+.sortable-header:active {
+  background-color: #e9ecef;
+}
+
+.sortable-header span {
+  margin-left: 5px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
