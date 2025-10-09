@@ -59,6 +59,14 @@ function UserPortal() {
   const [submitting, setSubmitting] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   
+  // Advanced filtering states
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+  const [selectedRooms, setSelectedRooms] = useState([]);
+  const [selectedRoomGroups, setSelectedRoomGroups] = useState([]);
+  const [dateRangeStart, setDateRangeStart] = useState('');
+  const [dateRangeEnd, setDateRangeEnd] = useState('');
+  const [selectedDays, setSelectedDays] = useState([]);
+  
   // Pagination for slots
   const [slotsPagination, setSlotsPagination] = useState({ 
     total: 0, 
@@ -215,6 +223,81 @@ function UserPortal() {
     }
   }, []);
 
+  // Advanced filtering function
+  const loadSlotsWithAdvancedFilter = useCallback(async (append = false, page = 1) => {
+    try {
+      setLoadingSlots(true);
+      
+      // Collect all room IDs from selected rooms and room groups
+      const allRoomIds = [];
+      
+      // Add individual rooms
+      selectedRooms.forEach(roomId => {
+        allRoomIds.push(roomId);
+      });
+      
+      // Add rooms from selected groups
+      selectedRoomGroups.forEach(groupId => {
+        const group = roomGroups.find(g => g._id === groupId);
+        if (group && group.rooms) {
+          group.rooms.forEach(room => {
+            allRoomIds.push(room._id);
+          });
+        }
+      });
+      
+      if (allRoomIds.length === 0) {
+        setSlots([]);
+        setSlotsPagination({ total: 0, page: 1, limit: 10, totalPages: 0 });
+        return;
+      }
+      
+      const params = {
+        roomIds: allRoomIds.join(','),
+        page,
+        limit: 10
+      };
+      
+      // Date range filtering
+      if (dateRangeStart && dateRangeEnd) {
+        params.dateRangeStart = dateRangeStart;
+        params.dateRangeEnd = dateRangeEnd;
+      } else if (selectedDate) {
+        params.dateRangeStart = selectedDate;
+        params.dateRangeEnd = selectedDate;
+      }
+      
+      // Time filtering
+      if (selectedTimeSlot) {
+        const [startTime, endTime] = selectedTimeSlot.split('-');
+        params.startTime = startTime;
+        params.endTime = endTime;
+      }
+      
+      const response = await slotAPI.getPublic(params);
+      let newSlots = response.data.slots;
+      
+      // Filter by selected days if specified
+      if (selectedDays.length > 0) {
+        newSlots = newSlots.filter(slot => {
+          const slotDay = new Date(slot.date).getDay();
+          return selectedDays.includes(slotDay);
+        });
+      }
+      
+      setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
+      setSlotsPagination({
+        ...response.data.pagination,
+        total: newSlots.length
+      });
+    } catch (error) {
+      console.error('Load advanced filter slots error:', error);
+      toast.error('فشل تحميل الأوقات');
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [selectedRooms, selectedRoomGroups, dateRangeStart, dateRangeEnd, selectedDate, selectedTimeSlot, selectedDays, roomGroups]);
+
   useEffect(() => {
     loadRooms();
     
@@ -232,22 +315,30 @@ function UserPortal() {
     // Setup socket listeners when component mounts or dependencies change
     socketService.onBookingApproved((booking) => {
       toast.success('تمت الموافقة على حجز!');
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
-      } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
-      } else if (selectedRoom) {
-        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+      if (showAdvancedFilter) {
+        loadSlotsWithAdvancedFilter(false, 1);
+      } else {
+        if (selectedRoom === 'all') {
+          loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
+        } else if (selectedRoom?.isGroup) {
+          loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
+        } else if (selectedRoom) {
+          loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+        }
       }
     });
 
     socketService.onBookingRejected(() => {
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
-      } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
-      } else if (selectedRoom) {
-        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+      if (showAdvancedFilter) {
+        loadSlotsWithAdvancedFilter(false, 1);
+      } else {
+        if (selectedRoom === 'all') {
+          loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
+        } else if (selectedRoom?.isGroup) {
+          loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
+        } else if (selectedRoom) {
+          loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+        }
       }
     });
   }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
@@ -260,15 +351,21 @@ function UserPortal() {
       // Reset pagination total immediately when filters change
       setSlotsPagination(prev => ({ ...prev, total: 0 }));
       
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
-      } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
-      } else if (selectedRoom) {
-        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
+      // Use advanced filtering if enabled
+      if (showAdvancedFilter) {
+        loadSlotsWithAdvancedFilter(false, 1);
+      } else {
+        // Use regular filtering
+        if (selectedRoom === 'all') {
+          loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
+        } else if (selectedRoom?.isGroup) {
+          loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
+        } else if (selectedRoom) {
+          loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
+        }
       }
     }
-  }, [selectedRoom, selectedDate, selectedTimeSlot, rooms, loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup]);
+  }, [selectedRoom, selectedDate, selectedTimeSlot, rooms, showAdvancedFilter, selectedRooms, selectedRoomGroups, dateRangeStart, dateRangeEnd, selectedDays, loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, loadSlotsWithAdvancedFilter]);
 
   // Function to load more slots (pagination)
   const loadMoreSlots = useCallback(() => {
@@ -279,16 +376,22 @@ function UserPortal() {
       return;
     }
     
-    if (selectedRoom === 'all') {
-      loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, true, nextPage);
-    } else if (selectedRoom?.isGroup) {
-      loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, true, nextPage);
-    } else if (selectedRoom) {
-      loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, true, nextPage);
+    // Use advanced filtering if enabled
+    if (showAdvancedFilter) {
+      loadSlotsWithAdvancedFilter(true, nextPage);
+    } else {
+      // Use regular filtering
+      if (selectedRoom === 'all') {
+        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, true, nextPage);
+      } else if (selectedRoom?.isGroup) {
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, true, nextPage);
+      } else if (selectedRoom) {
+        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, true, nextPage);
+      }
     }
     
     setCurrentSlotsPage(nextPage);
-  }, [currentSlotsPage, slotsPagination.totalPages, selectedDate, selectedTimeSlot, selectedRoom, loadAllSlotsForDateAndTime, loadSlotsForGroup, loadSlotsForDateAndTime]);
+  }, [currentSlotsPage, slotsPagination.totalPages, selectedDate, selectedTimeSlot, selectedRoom, showAdvancedFilter, loadAllSlotsForDateAndTime, loadSlotsForGroup, loadSlotsForDateAndTime, loadSlotsWithAdvancedFilter]);
 
   const hasMoreSlots = useCallback(() => {
     return currentSlotsPage < slotsPagination.totalPages;
@@ -346,12 +449,16 @@ function UserPortal() {
       setSelectedSlot(null);
       
       // Reload slots based on current selection
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
-      } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
+      if (showAdvancedFilter) {
+        loadSlotsWithAdvancedFilter(false, 1);
       } else {
-        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+        if (selectedRoom === 'all') {
+          loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
+        } else if (selectedRoom?.isGroup) {
+          loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
+        } else {
+          loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+        }
       }
     } catch (error) {
       toast.error(error.response?.data?.error || 'فشل إرسال طلب الحجز');
@@ -366,15 +473,22 @@ function UserPortal() {
     setSlots([]);
     setCurrentSlotsPage(1);
     
-    if (selectedRoom === 'all') {
-      loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
+    // Use advanced filtering if enabled
+    if (showAdvancedFilter) {
+      loadSlotsWithAdvancedFilter(false, 1);
       toast.info('تم تحديث الأوقات');
-    } else if (selectedRoom?.isGroup) {
-      loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
-      toast.info('تم تحديث الأوقات');
-    } else if (selectedRoom) {
-      loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
-      toast.info('تم تحديث الأوقات');
+    } else {
+      // Use regular filtering
+      if (selectedRoom === 'all') {
+        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
+        toast.info('تم تحديث الأوقات');
+      } else if (selectedRoom?.isGroup) {
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
+        toast.info('تم تحديث الأوقات');
+      } else if (selectedRoom) {
+        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+        toast.info('تم تحديث الأوقات');
+      }
     }
   };
 
@@ -545,7 +659,172 @@ function UserPortal() {
               <button className="btn-refresh" onClick={handleRefresh}>
                 <RefreshCw size={18} /> تحديث
               </button>
+              
+              <button 
+                className={`btn-advanced-filter ${showAdvancedFilter ? 'active' : ''}`}
+                onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
+              >
+                📅 تصفية متقدمة
+              </button>
             </div>
+
+            {/* Advanced Filtering Section */}
+            {showAdvancedFilter && (
+              <div className="advanced-filters-section">
+                <div className="advanced-filters-header">
+                  <h3>📅 تصفية متقدمة - بفترة زمنية وأيام محددة</h3>
+                  <button 
+                    className="btn-close-advanced"
+                    onClick={() => setShowAdvancedFilter(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="advanced-filters-content">
+                  {/* Multiple Room Selection */}
+                  <div className="filter-group">
+                    <label>🏢 اختر الأماكن (يمكن اختيار أكثر من مكان)</label>
+                    <div className="multi-select-container">
+                      {/* Individual Rooms */}
+                      {getRoomsNotInGroups().length > 0 && (
+                        <div className="rooms-section">
+                          <h4>الأماكن الفردية:</h4>
+                          {getRoomsNotInGroups().map((room) => (
+                            <label key={room._id} className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={selectedRooms.includes(room._id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedRooms([...selectedRooms, room._id]);
+                                  } else {
+                                    setSelectedRooms(selectedRooms.filter(id => id !== room._id));
+                                  }
+                                }}
+                              />
+                              <span>{room.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Room Groups */}
+                      {roomGroups.length > 0 && (
+                        <div className="room-groups-section">
+                          <h4>مجموعات الأماكن:</h4>
+                          {roomGroups.map((group) => (
+                            <label key={group._id} className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={selectedRoomGroups.includes(group._id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedRoomGroups([...selectedRoomGroups, group._id]);
+                                  } else {
+                                    setSelectedRoomGroups(selectedRoomGroups.filter(id => id !== group._id));
+                                  }
+                                }}
+                              />
+                              <span>📦 {group.name} ({group.rooms.length} أماكن)</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Date Range Selection */}
+                  <div className="filter-group">
+                    <label>📅 فترة زمنية (اختياري)</label>
+                    <div className="date-range-container">
+                      <input
+                        type="date"
+                        value={dateRangeStart}
+                        onChange={(e) => setDateRangeStart(e.target.value)}
+                        min={getTodayDate()}
+                        className="date-input"
+                        placeholder="من تاريخ"
+                      />
+                      <span>إلى</span>
+                      <input
+                        type="date"
+                        value={dateRangeEnd}
+                        onChange={(e) => setDateRangeEnd(e.target.value)}
+                        min={dateRangeStart || getTodayDate()}
+                        className="date-input"
+                        placeholder="إلى تاريخ"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Days of Week Selection */}
+                  <div className="filter-group">
+                    <label>📅 أيام الأسبوع (اختياري)</label>
+                    <div className="days-selection">
+                      {[
+                        { value: 0, label: 'الأحد' },
+                        { value: 1, label: 'الاثنين' },
+                        { value: 2, label: 'الثلاثاء' },
+                        { value: 3, label: 'الأربعاء' },
+                        { value: 4, label: 'الخميس' },
+                        { value: 5, label: 'الجمعة' },
+                        { value: 6, label: 'السبت' }
+                      ].map((day) => (
+                        <label key={day.value} className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedDays.includes(day.value)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedDays([...selectedDays, day.value]);
+                              } else {
+                                setSelectedDays(selectedDays.filter(d => d !== day.value));
+                              }
+                            }}
+                          />
+                          <span>{day.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Apply Advanced Filter Button */}
+                  <div className="advanced-filter-actions">
+                    <button 
+                      className="btn-apply-advanced"
+                      onClick={() => {
+                        if (selectedRooms.length === 0 && selectedRoomGroups.length === 0) {
+                          toast.error('يرجى اختيار مكان واحد على الأقل');
+                          return;
+                        }
+                        setCurrentSlotsPage(1);
+                        setSlots([]);
+                        setSlotsPagination(prev => ({ ...prev, total: 0 }));
+                        loadSlotsWithAdvancedFilter(false, 1);
+                        toast.success('تم تطبيق التصفية المتقدمة');
+                      }}
+                    >
+                      🔍 تطبيق التصفية
+                    </button>
+                    
+                    <button 
+                      className="btn-clear-advanced"
+                      onClick={() => {
+                        setSelectedRooms([]);
+                        setSelectedRoomGroups([]);
+                        setDateRangeStart('');
+                        setDateRangeEnd('');
+                        setSelectedDays([]);
+                        toast.info('تم مسح جميع الفلاتر');
+                      }}
+                    >
+                      🗑️ مسح الفلاتر
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="slots-section">
               <div className="section-header">
