@@ -81,30 +81,6 @@ export const exportAPI = {
         Authorization: `Bearer ${token}`
       }
     });
-  },
-  downloadMonthlyReport: (year, month) => {
-    const token = localStorage.getItem('adminToken');
-    return axios({
-      url: `${API_URL}/export/monthly-report`,
-      method: 'GET',
-      responseType: 'blob',
-      params: { year, month },
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-  },
-  downloadAllMonthsReport: (year) => {
-    const token = localStorage.getItem('adminToken');
-    return axios({
-      url: `${API_URL}/export/all-months-report`,
-      method: 'GET',
-      responseType: 'blob',
-      params: { year },
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
   }
 };
 

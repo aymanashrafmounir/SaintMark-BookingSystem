@@ -122,12 +122,6 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [bookingsCurrentPage, setBookingsCurrentPage] = useState(1);
   const bookingsPerPage = 50;
 
-  // Report modal states
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportType, setReportType] = useState('monthly'); // 'monthly' or 'yearly'
-  const [reportYear, setReportYear] = useState(new Date().getFullYear());
-  const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
-
   // Open confirmation modal
   const openConfirmModal = (title, message, onConfirm) => {
     setConfirmConfig({ title, message, onConfirm });
@@ -785,38 +779,6 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   };
 
-  const handleExportMonthlyReport = async (year, month) => {
-    try {
-      const response = await exportAPI.downloadMonthlyReport(year, month);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `monthly-report-${year}-${month.toString().padStart(2, '0')}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success(`تم تحميل التقرير الشهري لـ ${year}/${month.toString().padStart(2, '0')} بنجاح`);
-    } catch (error) {
-      toast.error('فشل تصدير التقرير الشهري');
-    }
-  };
-
-  const handleExportAllMonthsReport = async (year) => {
-    try {
-      const response = await exportAPI.downloadAllMonthsReport(year);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `yearly-report-${year}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success(`تم تحميل التقرير السنوي لـ ${year} بنجاح`);
-    } catch (error) {
-      toast.error('فشل تصدير التقرير السنوي');
-    }
-  };
-
   const openEditRoom = (room) => {
     setEditingRoom(room);
     setRoomForm({ name: room.name, isEnabled: room.isEnabled });
@@ -1226,12 +1188,6 @@ function AdminDashboard({ setIsAuthenticated }) {
             onClick={handleExportExcel}
           >
             <Download size={20} /> تصدير
-          </button>
-          <button
-            className="tab report-tab"
-            onClick={() => setShowReportModal(true)}
-          >
-            <Calendar size={20} /> تقارير
           </button>
         </div>
 
@@ -2624,133 +2580,6 @@ function AdminDashboard({ setIsAuthenticated }) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Report Modal */}
-      {showReportModal && (
-        <div className="modal-overlay">
-          <div className="modal report-modal">
-            <div className="modal-header">
-              <h2>📊 تقارير Excel</h2>
-              <button onClick={() => setShowReportModal(false)}>
-                <X size={24} />
-              </button>
-            </div>
-            <div className="modal-content">
-              <div className="report-options">
-                <div className="form-group">
-                  <label>نوع التقرير</label>
-                  <div className="radio-group">
-                    <label className="radio-label">
-                      <input
-                        type="radio"
-                        name="reportType"
-                        value="monthly"
-                        checked={reportType === 'monthly'}
-                        onChange={(e) => setReportType(e.target.value)}
-                      />
-                      <span>📅 تقرير شهري</span>
-                    </label>
-                    <label className="radio-label">
-                      <input
-                        type="radio"
-                        name="reportType"
-                        value="yearly"
-                        checked={reportType === 'yearly'}
-                        onChange={(e) => setReportType(e.target.value)}
-                      />
-                      <span>📆 تقرير سنوي (جميع الأشهر)</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>السنة</label>
-                  <select
-                    value={reportYear}
-                    onChange={(e) => setReportYear(parseInt(e.target.value))}
-                  >
-                    {Array.from({ length: 5 }, (_, i) => {
-                      const year = new Date().getFullYear() - 2 + i;
-                      return (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                {reportType === 'monthly' && (
-                  <div className="form-group">
-                    <label>الشهر</label>
-                    <select
-                      value={reportMonth}
-                      onChange={(e) => setReportMonth(parseInt(e.target.value))}
-                    >
-                      {Array.from({ length: 12 }, (_, i) => {
-                        const month = i + 1;
-                        const monthName = new Date(2024, i).toLocaleString('ar-EG', { month: 'long' });
-                        return (
-                          <option key={month} value={month}>
-                            {monthName}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                )}
-
-                <div className="report-description">
-                  {reportType === 'monthly' ? (
-                    <div className="description-box">
-                      <h4>📋 محتويات التقرير الشهري:</h4>
-                      <ul>
-                        <li>📊 ملخص شهري شامل</li>
-                        <li>📅 تفصيل يومي</li>
-                        <li>🏢 أداء الأماكن</li>
-                        <li>📝 تفاصيل الحجوزات</li>
-                      </ul>
-                    </div>
-                  ) : (
-                    <div className="description-box">
-                      <h4>📋 محتويات التقرير السنوي:</h4>
-                      <ul>
-                        <li>📆 12 ورقة عمل (شهر لكل ورقة)</li>
-                        <li>📊 إحصائيات يومية لكل شهر</li>
-                        <li>📈 مقارنة الأداء بين الأشهر</li>
-                        <li>📝 تفاصيل شاملة</li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setShowReportModal(false)}
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => {
-                  if (reportType === 'monthly') {
-                    handleExportMonthlyReport(reportYear, reportMonth);
-                  } else {
-                    handleExportAllMonthsReport(reportYear);
-                  }
-                  setShowReportModal(false);
-                }}
-              >
-                📥 تحميل التقرير
-              </button>
-            </div>
           </div>
         </div>
       )}
