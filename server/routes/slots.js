@@ -114,6 +114,7 @@ router.get('/', authMiddleware, async (req, res) => {
       dateRangeStart,
       dateRangeEnd,
       daysOfWeek, // comma-separated: "0,1,6" for Sunday, Monday, Saturday
+      timeRanges, // comma-separated time ranges: "10:00-12:00,14:00-16:00"
       startTime, 
       endTime 
     } = req.query;
@@ -171,6 +172,18 @@ router.get('/', authMiddleware, async (req, res) => {
       slots = slots.filter(slot => {
         const slotDay = new Date(slot.date).getDay(); // 0 = Sunday, 1 = Monday, etc.
         return selectedDays.includes(slotDay);
+      });
+    }
+    
+    // Filter by time ranges if specified (client-side filtering for flexibility)
+    if (timeRanges) {
+      const selectedTimeRanges = timeRanges.split(',').map(tr => tr.trim());
+      slots = slots.filter(slot => {
+        // Check if slot's start time falls within any of the selected time ranges
+        return selectedTimeRanges.some(timeRange => {
+          const [rangeStart, rangeEnd] = timeRange.split('-');
+          return slot.startTime >= rangeStart && slot.startTime < rangeEnd;
+        });
       });
     }
     
@@ -338,7 +351,13 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     // Build query from filters
     const query = {};
     
-    if (filters.roomId) query.roomId = filters.roomId;
+    if (filters.roomIds) {
+      // Handle multiple room IDs (for group filtering)
+      const roomIdArray = filters.roomIds.split(',').map(id => id.trim());
+      query.roomId = { $in: roomIdArray };
+    } else if (filters.roomId) {
+      query.roomId = filters.roomId;
+    }
     if (filters.type) query.type = filters.type;
     if (filters.startTime) query.startTime = filters.startTime;
     if (filters.endTime) query.endTime = filters.endTime;
@@ -373,6 +392,18 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       slotsToUpdate = slotsToUpdate.filter(slot => {
         const slotDay = new Date(slot.date).getDay();
         return selectedDays.includes(slotDay);
+      });
+    }
+    
+    // Filter by time ranges if specified
+    if (filters.timeRanges) {
+      const selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim());
+      slotsToUpdate = slotsToUpdate.filter(slot => {
+        // Check if slot's start time falls within any of the selected time ranges
+        return selectedTimeRanges.some(timeRange => {
+          const [rangeStart, rangeEnd] = timeRange.split('-');
+          return slot.startTime >= rangeStart && slot.startTime < rangeEnd;
+        });
       });
     }
 
@@ -459,7 +490,13 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     // Build query from filters
     const query = {};
     
-    if (filters.roomId) query.roomId = filters.roomId;
+    if (filters.roomIds) {
+      // Handle multiple room IDs (for group filtering)
+      const roomIdArray = filters.roomIds.split(',').map(id => id.trim());
+      query.roomId = { $in: roomIdArray };
+    } else if (filters.roomId) {
+      query.roomId = filters.roomId;
+    }
     if (filters.type) query.type = filters.type;
     if (filters.startTime) query.startTime = filters.startTime;
     if (filters.endTime) query.endTime = filters.endTime;
@@ -494,6 +531,18 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
       slotsToDelete = slotsToDelete.filter(slot => {
         const slotDay = new Date(slot.date).getDay();
         return selectedDays.includes(slotDay);
+      });
+    }
+    
+    // Filter by time ranges if specified
+    if (filters.timeRanges) {
+      const selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim());
+      slotsToDelete = slotsToDelete.filter(slot => {
+        // Check if slot's start time falls within any of the selected time ranges
+        return selectedTimeRanges.some(timeRange => {
+          const [rangeStart, rangeEnd] = timeRange.split('-');
+          return slot.startTime >= rangeStart && slot.startTime < rangeEnd;
+        });
       });
     }
 
