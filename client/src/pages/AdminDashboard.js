@@ -96,9 +96,20 @@ function AdminDashboard({ setIsAuthenticated }) {
     dateRangeStart: '',
     dateRangeEnd: '',
     daysOfWeek: [], // Array of selected days: 0 = Sunday, 1 = Monday, etc.
+    timeRanges: [], // Array of selected time ranges
     startTime: '',
     endTime: ''
   });
+
+  // Predefined time ranges for filtering
+  const timeRangeOptions = [
+    { value: '10:00-12:00', label: '10:00 ص → 12:00 م', startTime: '10:00', endTime: '12:00' },
+    { value: '12:00-14:00', label: '12:00 م → 2:00 م', startTime: '12:00', endTime: '14:00' },
+    { value: '14:00-16:00', label: '2:00 م → 4:00 م', startTime: '14:00', endTime: '16:00' },
+    { value: '16:00-18:00', label: '4:00 م → 6:00 م', startTime: '16:00', endTime: '18:00' },
+    { value: '18:00-20:00', label: '6:00 م → 8:00 م', startTime: '18:00', endTime: '20:00' },
+    { value: '20:00-22:00', label: '8:00 م → 10:00 م', startTime: '20:00', endTime: '22:00' }
+  ];
 
   // Pagination for slots
   const [slotsCurrentPage, setSlotsCurrentPage] = useState(1);
@@ -178,6 +189,13 @@ function AdminDashboard({ setIsAuthenticated }) {
         params.roomIds = params.roomIds.join(',');
       } else {
         delete params.roomIds;
+      }
+      
+      // Convert timeRanges array to comma-separated string
+      if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
+        params.timeRanges = params.timeRanges.join(',');
+      } else {
+        delete params.timeRanges;
       }
       
       // Remove empty filter values
@@ -817,7 +835,7 @@ function AdminDashboard({ setIsAuthenticated }) {
   // Check if there are active filters
   const hasActiveFilters = useCallback(() => {
     return Object.entries(slotFilters).some(([key, value]) => {
-      if (key === 'daysOfWeek' || key === 'roomIds') {
+      if (key === 'daysOfWeek' || key === 'roomIds' || key === 'timeRanges') {
         return Array.isArray(value) && value.length > 0;
       }
       return value !== '' && value !== null && value !== undefined;
@@ -963,6 +981,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       dateRangeStart: '',
       dateRangeEnd: '',
       daysOfWeek: [],
+      timeRanges: [],
       startTime: '',
       endTime: ''
     };
@@ -997,6 +1016,21 @@ function AdminDashboard({ setIsAuthenticated }) {
       setSlotFilters({ 
         ...slotFilters, 
         roomIds: [...currentRooms, roomId] 
+      });
+    }
+  };
+
+  const toggleTimeRange = (timeRange) => {
+    const currentTimeRanges = [...slotFilters.timeRanges];
+    if (currentTimeRanges.includes(timeRange)) {
+      setSlotFilters({ 
+        ...slotFilters, 
+        timeRanges: currentTimeRanges.filter(tr => tr !== timeRange) 
+      });
+    } else {
+      setSlotFilters({ 
+        ...slotFilters, 
+        timeRanges: [...currentTimeRanges, timeRange] 
       });
     }
   };
@@ -1208,6 +1242,9 @@ function AdminDashboard({ setIsAuthenticated }) {
         if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
           params.roomIds = params.roomIds.join(',');
         }
+        if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
+          params.timeRanges = params.timeRanges.join(',');
+        }
         
         const response = await slotAPI.bulkUpdate({
           filters: params,
@@ -1254,6 +1291,9 @@ function AdminDashboard({ setIsAuthenticated }) {
           }
           if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
             params.roomIds = params.roomIds.join(',');
+          }
+          if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
+            params.timeRanges = params.timeRanges.join(',');
           }
           
           const response = await slotAPI.bulkDelete({ filters: params });
@@ -1502,6 +1542,27 @@ function AdminDashboard({ setIsAuthenticated }) {
                     {slotFilters.roomIds.length > 0 && (
                       <div className="selected-rooms-info">
                         ✓ تم اختيار {slotFilters.roomIds.length} مكان
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="filter-item time-ranges-filter">
+                    <label>الفترات الزمنية</label>
+                    <div className="time-ranges-checkboxes">
+                      {timeRangeOptions.map((timeRange) => (
+                        <label key={timeRange.value} className="time-range-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={slotFilters.timeRanges.includes(timeRange.value)}
+                            onChange={() => toggleTimeRange(timeRange.value)}
+                          />
+                          <span>{timeRange.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {slotFilters.timeRanges.length > 0 && (
+                      <div className="selected-time-ranges-info">
+                        ✓ تم اختيار {slotFilters.timeRanges.length} فترة زمنية
                       </div>
                     )}
                   </div>
