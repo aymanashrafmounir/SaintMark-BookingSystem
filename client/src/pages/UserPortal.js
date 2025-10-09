@@ -33,6 +33,7 @@ const formatTimeRange = (startTime, endTime) => {
 
 // Predefined time slots
 const TIME_SLOTS = [
+  { value: '', label: 'جميع الاوقات' },
   { value: '10:00-12:00', label: '10:00 ص → 12:00 م' },
   { value: '12:00-14:00', label: '12:00 م → 2:00 م' },
   { value: '14:00-16:00', label: '2:00 م → 4:00 م' },
@@ -115,24 +116,21 @@ function UserPortal() {
     try {
       setLoadingSlots(true);
       
-      if (!timeSlot) {
-        setSlots([]);
-        setSlotsPagination({ total: 0, page: 1, limit: 10, totalPages: 0 });
-        return;
-      }
-      
-      const [startTime, endTime] = timeSlot.split('-');
-      
       // Use server-side pagination
       const params = {
         roomId,
         dateRangeStart: date,
         dateRangeEnd: date,
-        startTime,
-        endTime,
         page,
         limit: 10
       };
+      
+      // Only add time filters if a specific time slot is selected
+      if (timeSlot) {
+        const [startTime, endTime] = timeSlot.split('-');
+        params.startTime = startTime;
+        params.endTime = endTime;
+      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -150,23 +148,20 @@ function UserPortal() {
     try {
       setLoadingSlots(true);
       
-      if (!timeSlot) {
-        setSlots([]);
-        setSlotsPagination({ total: 0, page: 1, limit: 10, totalPages: 0 });
-        return;
-      }
-      
-      const [startTime, endTime] = timeSlot.split('-');
-      
       // Use server-side pagination for all slots
       const params = {
         dateRangeStart: date,
         dateRangeEnd: date,
-        startTime,
-        endTime,
         page,
         limit: 10
       };
+      
+      // Only add time filters if a specific time slot is selected
+      if (timeSlot) {
+        const [startTime, endTime] = timeSlot.split('-');
+        params.startTime = startTime;
+        params.endTime = endTime;
+      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -188,15 +183,7 @@ function UserPortal() {
         return;
       }
       
-      if (!timeSlot) {
-        setSlots([]);
-        setSlotsPagination({ total: 0, page: 1, limit: 10, totalPages: 0 });
-        return;
-      }
-      
       setLoadingSlots(true);
-      
-      const [startTime, endTime] = timeSlot.split('-');
       
       // Use server-side pagination for group slots
       const roomIds = group.rooms.map(room => room._id);
@@ -204,11 +191,16 @@ function UserPortal() {
         roomIds: roomIds.join(','),
         dateRangeStart: date,
         dateRangeEnd: date,
-        startTime,
-        endTime,
         page,
         limit: 10
       };
+      
+      // Only add time filters if a specific time slot is selected
+      if (timeSlot) {
+        const [startTime, endTime] = timeSlot.split('-');
+        params.startTime = startTime;
+        params.endTime = endTime;
+      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -262,7 +254,7 @@ function UserPortal() {
 
   // Load initial slots (first page only)
   useEffect(() => {
-    if (selectedDate && selectedTimeSlot && rooms.length > 0) {
+    if (selectedDate && rooms.length > 0) {
       setCurrentSlotsPage(1);
       setSlots([]); // Clear previous slots
       // Reset pagination total immediately when filters change
@@ -542,7 +534,6 @@ function UserPortal() {
                   onChange={(e) => setSelectedTimeSlot(e.target.value)}
                   className="time-select"
                 >
-                  <option value="">اختر الوقت</option>
                   {TIME_SLOTS.map(slot => (
                     <option key={slot.value} value={slot.value}>
                       {slot.label}
@@ -560,10 +551,10 @@ function UserPortal() {
               <div className="section-header">
                 <h2>
                   {selectedRoom === 'all' 
-                    ? 'الأوقات المتاحة في جميع الأماكن' 
+                    ? (selectedTimeSlot ? 'الأوقات المتاحة في جميع الأماكن' : 'جميع الأوقات المتاحة في جميع الأماكن')
                     : selectedRoom?.isGroup
-                    ? `الأوقات المتاحة في مجموعة ${selectedRoom?.name}`
-                    : `الأوقات المتاحة في ${selectedRoom?.name}`}
+                    ? (selectedTimeSlot ? `الأوقات المتاحة في مجموعة ${selectedRoom?.name}` : `جميع الأوقات المتاحة في مجموعة ${selectedRoom?.name}`)
+                    : (selectedTimeSlot ? `الأوقات المتاحة في ${selectedRoom?.name}` : `جميع الأوقات المتاحة في ${selectedRoom?.name}`)}
                 </h2>
                 <span className="slot-count">
                   {loadingSlots && slotsPagination.total === 0 ? 'جاري التحميل...' : `${slotsPagination.total} متاح`}
