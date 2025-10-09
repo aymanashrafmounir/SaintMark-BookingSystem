@@ -796,7 +796,7 @@ function UserPortal() {
       )}
 
       <footer className="portal-footer">
-        <p>© 2025 نظام حجز الأماكن | صُنع بـ ❤️</p>
+        <p>© 2025 كنيسة مارمرقس بشبرا | صُنع بـ ❤️</p>
       </footer>
     </div>
   );

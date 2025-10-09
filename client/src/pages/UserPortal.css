@@ -46,11 +46,11 @@
 }
 
 .hero-logo {
-  width: 300px;
+  width: 330px;
   height: 300px;
   object-fit: contain;
   border-radius: 30px;
-  background: rgba(26, 115, 232, 0.05);
+  background: #fffffe;
   padding: 40px;
   margin-bottom: 3rem;
   box-shadow: 0 20px 60px rgba(26, 115, 232, 0.2);
@@ -668,8 +668,8 @@
   }
 
   .hero-logo {
-    width: 200px;
-    height: 200px;
+    width: 330px;
+    height: 300px;
     padding: 30px;
   }
 
@@ -729,8 +729,8 @@
   }
 
   .hero-logo {
-    width: 150px;
-    height: 150px;
+    width: 330px;
+    height: 300px;
     padding: 25px;
   }
 
