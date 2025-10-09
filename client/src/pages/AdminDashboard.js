@@ -88,7 +88,7 @@ function AdminDashboard({ setIsAuthenticated }) {
   
   // Slot filters
   const [slotFilters, setSlotFilters] = useState({
-    roomId: '',
+    roomIds: [], // Array of selected room IDs
     serviceName: '',
     providerName: '',
     type: '',
@@ -171,6 +171,13 @@ function AdminDashboard({ setIsAuthenticated }) {
         params.daysOfWeek = params.daysOfWeek.join(',');
       } else {
         delete params.daysOfWeek;
+      }
+      
+      // Convert roomIds array to comma-separated string
+      if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
+        params.roomIds = params.roomIds.join(',');
+      } else {
+        delete params.roomIds;
       }
       
       // Remove empty filter values
@@ -810,7 +817,7 @@ function AdminDashboard({ setIsAuthenticated }) {
   // Check if there are active filters
   const hasActiveFilters = useCallback(() => {
     return Object.entries(slotFilters).some(([key, value]) => {
-      if (key === 'daysOfWeek') {
+      if (key === 'daysOfWeek' || key === 'roomIds') {
         return Array.isArray(value) && value.length > 0;
       }
       return value !== '' && value !== null && value !== undefined;
@@ -948,7 +955,7 @@ function AdminDashboard({ setIsAuthenticated }) {
 
   const clearSlotFilters = () => {
     const emptyFilters = {
-      roomId: '',
+      roomIds: [],
       serviceName: '',
       providerName: '',
       type: '',
@@ -975,6 +982,21 @@ function AdminDashboard({ setIsAuthenticated }) {
       setSlotFilters({ 
         ...slotFilters, 
         daysOfWeek: [...currentDays, day] 
+      });
+    }
+  };
+
+  const toggleRoomFilter = (roomId) => {
+    const currentRooms = [...slotFilters.roomIds];
+    if (currentRooms.includes(roomId)) {
+      setSlotFilters({ 
+        ...slotFilters, 
+        roomIds: currentRooms.filter(id => id !== roomId) 
+      });
+    } else {
+      setSlotFilters({ 
+        ...slotFilters, 
+        roomIds: [...currentRooms, roomId] 
       });
     }
   };
@@ -1183,6 +1205,9 @@ function AdminDashboard({ setIsAuthenticated }) {
         if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
           params.daysOfWeek = params.daysOfWeek.join(',');
         }
+        if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
+          params.roomIds = params.roomIds.join(',');
+        }
         
         const response = await slotAPI.bulkUpdate({
           filters: params,
@@ -1226,6 +1251,9 @@ function AdminDashboard({ setIsAuthenticated }) {
           const params = { ...slotFilters };
           if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
             params.daysOfWeek = params.daysOfWeek.join(',');
+          }
+          if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
+            params.roomIds = params.roomIds.join(',');
           }
           
           const response = await slotAPI.bulkDelete({ filters: params });
@@ -1457,19 +1485,25 @@ function AdminDashboard({ setIsAuthenticated }) {
                   )}
                 </div>
                 <div className="filters-grid">
-                  <div className="filter-item">
+                  <div className="filter-item rooms-filter">
                     <label>المكان</label>
-                    <select
-                      value={slotFilters.roomId}
-                      onChange={(e) => {
-                        setSlotFilters({ ...slotFilters, roomId: e.target.value });
-                      }}
-                    >
-                      <option value="">جميع الأماكن</option>
+                    <div className="rooms-checkboxes">
                       {rooms.map((room) => (
-                        <option key={room._id} value={room._id}>{room.name}</option>
+                        <label key={room._id} className="room-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={slotFilters.roomIds.includes(room._id)}
+                            onChange={() => toggleRoomFilter(room._id)}
+                          />
+                          <span>{room.name}</span>
+                        </label>
                       ))}
-                    </select>
+                    </div>
+                    {slotFilters.roomIds.length > 0 && (
+                      <div className="selected-rooms-info">
+                        ✓ تم اختيار {slotFilters.roomIds.length} مكان
+                      </div>
+                    )}
                   </div>
 
                   <div className="filter-item">

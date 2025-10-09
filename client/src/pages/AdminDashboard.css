@@ -465,6 +465,17 @@
   margin-top: 0.5rem;
 }
 
+.rooms-filter {
+  grid-column: 1 / -1; /* Span full width */
+}
+
+.rooms-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
 .day-checkbox {
   display: flex;
   align-items: center;
@@ -503,6 +514,55 @@
 }
 
 .selected-days-info {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-radius: 6px;
+  color: #667eea;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.room-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f5f7fa;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #555;
+  user-select: none;
+}
+
+.room-checkbox input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.room-checkbox:hover {
+  background: #e8eaf6;
+  border-color: #667eea;
+}
+
+.room-checkbox input[type="checkbox"]:checked + span {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.room-checkbox:has(input[type="checkbox"]:checked) {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-color: #667eea;
+}
+
+.selected-rooms-info {
   margin-top: 0.75rem;
   padding: 0.5rem 1rem;
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
