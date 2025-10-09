@@ -1106,28 +1106,20 @@ function AdminDashboard({ setIsAuthenticated }) {
           console.log('Starting bulk weekly update for slots:', selectedSlots);
           toast.info(`⏳ جاري تحويل ${selectedSlots.length} موعد إلى أسبوعية...`);
           
-          const response = await fetch('/api/slots/bulk-update', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-              slotIds: selectedSlots,
-              updates: { type: 'weekly' }
-            })
+          const response = await slotAPI.bulkUpdate({
+            slotIds: selectedSlots,
+            updates: { type: 'weekly' }
           });
 
           console.log('Response status:', response.status);
-          const responseData = await response.json();
-          console.log('Response data:', responseData);
+          console.log('Response data:', response.data);
 
-          if (response.ok) {
+          if (response.status === 200) {
             toast.success(`تم تحويل ${selectedSlots.length} موعد إلى أسبوعية بنجاح`);
             setSelectedSlots([]);
             loadSlots(slotsCurrentPage, slotFilters);
           } else {
-            toast.error(responseData.error || 'فشل في تحويل المواعيد');
+            toast.error(response.data?.error || 'فشل في تحويل المواعيد');
           }
         } catch (error) {
           console.error('Error making slots weekly:', error);
@@ -1153,33 +1145,25 @@ function AdminDashboard({ setIsAuthenticated }) {
           console.log('Starting bulk make available for slots:', selectedSlots);
           toast.info(`⏳ جاري جعل ${selectedSlots.length} موعد متاح...`);
           
-          const response = await fetch('/api/slots/bulk-update', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-              slotIds: selectedSlots,
-              updates: { 
-                serviceName: '', 
-                providerName: '', 
-                status: 'available',
-                bookedBy: null
-              }
-            })
+          const response = await slotAPI.bulkUpdate({
+            slotIds: selectedSlots,
+            updates: { 
+              serviceName: '', 
+              providerName: '', 
+              status: 'available',
+              bookedBy: null
+            }
           });
 
           console.log('Response status:', response.status);
-          const responseData = await response.json();
-          console.log('Response data:', responseData);
+          console.log('Response data:', response.data);
 
-          if (response.ok) {
+          if (response.status === 200) {
             toast.success(`تم جعل ${selectedSlots.length} موعد متاح بنجاح`);
             setSelectedSlots([]);
             loadSlots(slotsCurrentPage, slotFilters);
           } else {
-            toast.error(responseData.error || 'فشل في جعل المواعيد متاحة');
+            toast.error(response.data?.error || 'فشل في جعل المواعيد متاحة');
           }
         } catch (error) {
           console.error('Error making slots available:', error);
