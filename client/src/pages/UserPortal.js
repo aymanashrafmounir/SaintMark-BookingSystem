@@ -42,12 +42,6 @@ const TIME_SLOTS = [
 ];
 
 function UserPortal() {
-  // Helper to get date + days
-  const getDatePlusDays = (days) => {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0];
-  };
 
   const [rooms, setRooms] = useState([]);
   const [roomGroups, setRoomGroups] = useState([]);
