@@ -36,6 +36,17 @@ const formatTimeRange = (startTime, endTime) => {
   return `\u202A${start}\u202C → \u202A${end}\u202C`;
 };
 
+// Predefined time slots (same as user portal)
+const TIME_SLOTS = [
+  { value: '', label: 'جميع الاوقات' },
+  { value: '10:00-12:00', label: '10:00 ص → 12:00 م' },
+  { value: '12:00-14:00', label: '12:00 م → 2:00 م' },
+  { value: '14:00-16:00', label: '2:00 م → 4:00 م' },
+  { value: '16:00-18:00', label: '4:00 م → 6:00 م' },
+  { value: '18:00-20:00', label: '6:00 م → 8:00 م' },
+  { value: '20:00-22:00', label: '8:00 م → 10:00 م' }
+];
+
 function AdminDashboard({ setIsAuthenticated }) {
   const [activeTab, setActiveTab] = useState('rooms');
   const [rooms, setRooms] = useState([]);
@@ -97,7 +108,8 @@ function AdminDashboard({ setIsAuthenticated }) {
     dateRangeEnd: '',
     daysOfWeek: [], // Array of selected days: 0 = Sunday, 1 = Monday, etc.
     startTime: '',
-    endTime: ''
+    endTime: '',
+    timeSlot: '' // For advanced time slot filtering (like user portal)
   });
 
   // Pagination for slots
@@ -171,6 +183,14 @@ function AdminDashboard({ setIsAuthenticated }) {
         params.daysOfWeek = params.daysOfWeek.join(',');
       } else {
         delete params.daysOfWeek;
+      }
+      
+      // Handle timeSlot filter (convert to startTime and endTime)
+      if (params.timeSlot && params.timeSlot !== '') {
+        const [startTime, endTime] = params.timeSlot.split('-');
+        params.startTime = startTime;
+        params.endTime = endTime;
+        delete params.timeSlot; // Remove timeSlot as it's not a backend parameter
       }
       
       // Remove empty filter values
@@ -957,7 +977,8 @@ function AdminDashboard({ setIsAuthenticated }) {
       dateRangeEnd: '',
       daysOfWeek: [],
       startTime: '',
-      endTime: ''
+      endTime: '',
+      timeSlot: ''
     };
     setSlotFilters(emptyFilters);
     setSlotsCurrentPage(1);
@@ -1544,6 +1565,52 @@ function AdminDashboard({ setIsAuthenticated }) {
                       }}
                       placeholder="بحث بالخادم"
                     />
+                  </div>
+                </div>
+
+                {/* Advanced Time Filtering Section */}
+                <div className="advanced-time-filters">
+                  <h4 style={{ margin: '1.5rem 0 1rem', fontSize: '1rem', fontWeight: '600', color: '#667eea' }}>
+                    ⏰ تصفية متقدمة - بفترات زمنية محددة
+                  </h4>
+                  <div className="time-slot-filters">
+                    <div className="filter-row">
+                      <div className="filter-item">
+                        <label>فترة زمنية محددة</label>
+                        <select
+                          value={slotFilters.timeSlot}
+                          onChange={(e) => {
+                            setSlotFilters({ 
+                              ...slotFilters, 
+                              timeSlot: e.target.value,
+                              startTime: '', // Clear individual time filters when using time slot
+                              endTime: ''
+                            });
+                          }}
+                          className="time-slot-select"
+                        >
+                          {TIME_SLOTS.map(slot => (
+                            <option key={slot.value} value={slot.value}>
+                              {slot.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {slotFilters.timeSlot && (
+                      <div className="time-slot-info">
+                        <div className="selected-time-info">
+                          ✓ تم اختيار الفترة: {TIME_SLOTS.find(s => s.value === slotFilters.timeSlot)?.label}
+                        </div>
+                        <button 
+                          type="button"
+                          className="btn-clear-time-slot"
+                          onClick={() => setSlotFilters({ ...slotFilters, timeSlot: '' })}
+                        >
+                          <X size={14} /> إزالة الفترة الزمنية
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
