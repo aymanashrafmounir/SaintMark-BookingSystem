@@ -513,17 +513,6 @@
   display: inline-block;
 }
 
-.selected-rooms-info {
-  margin-top: 0.75rem;
-  padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border-radius: 6px;
-  color: #667eea;
-  font-size: 0.875rem;
-  font-weight: 600;
-  display: inline-block;
-}
-
 .filters-actions {
   display: flex;
   justify-content: space-between;
@@ -1568,32 +1557,6 @@
   cursor: pointer;
 }
 
-.rooms-multi-select {
-  width: 100%;
-}
-
-.time-select {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid #dadce0;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  background: white;
-  transition: all 0.2s ease;
-  color: #3c4043;
-  font-family: inherit;
-}
-
-.time-select:focus {
-  outline: none;
-  border-color: #1a73e8;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
-}
-
-.time-select:hover {
-  border-color: #5f6368;
-}
-
 .rooms-checkboxes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1602,7 +1565,6 @@
   background: #f8f9fa;
   border-radius: 8px;
   margin-top: 0.5rem;
-  border: 1px solid #e0e0e0;
 }
 
 .room-checkbox {

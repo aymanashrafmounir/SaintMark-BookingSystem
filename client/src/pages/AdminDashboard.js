@@ -36,17 +36,6 @@ const formatTimeRange = (startTime, endTime) => {
   return `\u202A${start}\u202C → \u202A${end}\u202C`;
 };
 
-// Predefined time slots for admin filtering
-const TIME_SLOTS = [
-  { value: '', label: 'جميع الاوقات' },
-  { value: '10:00-12:00', label: '10:00 ص → 12:00 م' },
-  { value: '12:00-14:00', label: '12:00 م → 2:00 م' },
-  { value: '14:00-16:00', label: '2:00 م → 4:00 م' },
-  { value: '16:00-18:00', label: '4:00 م → 6:00 م' },
-  { value: '18:00-20:00', label: '6:00 م → 8:00 م' },
-  { value: '20:00-22:00', label: '8:00 م → 10:00 م' }
-];
-
 function AdminDashboard({ setIsAuthenticated }) {
   const [activeTab, setActiveTab] = useState('rooms');
   const [rooms, setRooms] = useState([]);
@@ -108,8 +97,7 @@ function AdminDashboard({ setIsAuthenticated }) {
     dateRangeEnd: '',
     daysOfWeek: [], // Array of selected days: 0 = Sunday, 1 = Monday, etc.
     startTime: '',
-    endTime: '',
-    timeSlot: '' // New field for time slot dropdown
+    endTime: ''
   });
 
   // Pagination for slots
@@ -183,14 +171,6 @@ function AdminDashboard({ setIsAuthenticated }) {
         params.daysOfWeek = params.daysOfWeek.join(',');
       } else {
         delete params.daysOfWeek;
-      }
-      
-      // Handle timeSlot selection - convert to startTime and endTime
-      if (params.timeSlot) {
-        const [startTime, endTime] = params.timeSlot.split('-');
-        params.startTime = startTime;
-        params.endTime = endTime;
-        delete params.timeSlot; // Remove timeSlot as it's not a valid API parameter
       }
       
       // Remove empty filter values
@@ -977,8 +957,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       dateRangeEnd: '',
       daysOfWeek: [],
       startTime: '',
-      endTime: '',
-      timeSlot: ''
+      endTime: ''
     };
     setSlotFilters(emptyFilters);
     setSlotsCurrentPage(1);
@@ -1520,20 +1499,27 @@ function AdminDashboard({ setIsAuthenticated }) {
                   </div>
 
                   <div className="filter-item">
-                    <label>الوقت</label>
-                    <select
-                      value={slotFilters.timeSlot}
+                    <label>وقت البداية</label>
+                    <input
+                      type="time"
+                      value={slotFilters.startTime}
                       onChange={(e) => {
-                        setSlotFilters({ ...slotFilters, timeSlot: e.target.value });
+                        setSlotFilters({ ...slotFilters, startTime: e.target.value });
                       }}
-                      className="time-select"
-                    >
-                      {TIME_SLOTS.map(slot => (
-                        <option key={slot.value} value={slot.value}>
-                          {slot.label}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="تصفية بوقت البداية"
+                    />
+                  </div>
+
+                  <div className="filter-item">
+                    <label>وقت النهاية</label>
+                    <input
+                      type="time"
+                      value={slotFilters.endTime}
+                      onChange={(e) => {
+                        setSlotFilters({ ...slotFilters, endTime: e.target.value });
+                      }}
+                      placeholder="تصفية بوقت النهاية"
+                    />
                   </div>
 
                   <div className="filter-item">
