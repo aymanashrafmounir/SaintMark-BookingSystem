@@ -526,7 +526,7 @@ function UserPortal() {
                     : `الأوقات المتاحة في ${selectedRoom?.name}`}
                 </h2>
                 <span className="slot-count">
-                  {slots.filter(s => s.status === 'available').length} متاح
+                  {slotsPagination.total} متاح
                 </span>
               </div>
 
