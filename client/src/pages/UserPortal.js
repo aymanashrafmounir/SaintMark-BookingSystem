@@ -52,6 +52,9 @@ function UserPortal() {
   const [serviceName, setServiceName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [currentDateIndex, setCurrentDateIndex] = useState(0);
+  const DATES_PER_LOAD = 3; // Load 3 days at a time
 
   // Helper function to get array of dates between start and end
   const getDateRange = useCallback((start, end) => {
@@ -112,27 +115,31 @@ function UserPortal() {
     }
   }, []);
 
-  const loadSlotsForDateRange = useCallback(async (roomId, startDate, endDate) => {
+  const loadSlotsForDateRange = useCallback(async (roomId, startDate, endDate, append = false) => {
     try {
+      setLoadingSlots(true);
       const dates = getDateRange(startDate, endDate);
       const slotsPromises = dates.map(date => slotAPI.getByRoom(roomId, date));
       const slotsResponses = await Promise.all(slotsPromises);
       
       // Combine all slots from all dates
-      const allSlots = slotsResponses.flatMap(response => response.data);
-      setSlots(allSlots);
+      const newSlots = slotsResponses.flatMap(response => response.data);
+      setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
     } catch (error) {
       toast.error('فشل تحميل الأوقات');
+    } finally {
+      setLoadingSlots(false);
     }
   }, [getDateRange]);
 
-  const loadAllSlotsForDateRange = useCallback(async (startDate, endDate) => {
+  const loadAllSlotsForDateRange = useCallback(async (startDate, endDate, append = false) => {
     try {
       if (rooms.length === 0) {
         console.log('No rooms available yet');
         return;
       }
       
+      setLoadingSlots(true);
       const dates = getDateRange(startDate, endDate);
       const allPromises = [];
       
@@ -145,25 +152,29 @@ function UserPortal() {
       
       if (allPromises.length === 0) {
         setSlots([]);
+        setLoadingSlots(false);
         return;
       }
       
       const allResponses = await Promise.all(allPromises);
-      const allSlots = allResponses.flatMap(response => response.data);
-      setSlots(allSlots);
+      const newSlots = allResponses.flatMap(response => response.data);
+      setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
     } catch (error) {
       console.error('Load all slots error:', error);
       toast.error('فشل تحميل الأوقات');
+    } finally {
+      setLoadingSlots(false);
     }
   }, [rooms, getDateRange]);
 
-  const loadSlotsForGroup = useCallback(async (group, startDate, endDate) => {
+  const loadSlotsForGroup = useCallback(async (group, startDate, endDate, append = false) => {
     try {
       if (!group.rooms || group.rooms.length === 0) {
         setSlots([]);
         return;
       }
       
+      setLoadingSlots(true);
       const dates = getDateRange(startDate, endDate);
       const allPromises = [];
       
@@ -176,15 +187,18 @@ function UserPortal() {
       
       if (allPromises.length === 0) {
         setSlots([]);
+        setLoadingSlots(false);
         return;
       }
       
       const allResponses = await Promise.all(allPromises);
-      const allSlots = allResponses.flatMap(response => response.data);
-      setSlots(allSlots);
+      const newSlots = allResponses.flatMap(response => response.data);
+      setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
     } catch (error) {
       console.error('Load group slots error:', error);
       toast.error('فشل تحميل الأوقات');
+    } finally {
+      setLoadingSlots(false);
     }
   }, [getDateRange]);
 
@@ -225,17 +239,55 @@ function UserPortal() {
     });
   }, [loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup, selectedRoom, startDate, endDate]);
 
+  // Load initial slots (limited to DATES_PER_LOAD days)
   useEffect(() => {
     if (startDate && endDate && rooms.length > 0) {
+      setCurrentDateIndex(0);
+      setSlots([]); // Clear previous slots
+      
+      // Calculate initial end date (limit to DATES_PER_LOAD days)
+      const dates = getDateRange(startDate, endDate);
+      const initialEndDate = dates[Math.min(DATES_PER_LOAD - 1, dates.length - 1)];
+      
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate);
+        loadAllSlotsForDateRange(startDate, initialEndDate, false);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, startDate, endDate);
+        loadSlotsForGroup(selectedRoom, startDate, initialEndDate, false);
       } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+        loadSlotsForDateRange(selectedRoom._id, startDate, initialEndDate, false);
       }
     }
-  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup]);
+  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup, getDateRange]);
+
+  // Function to load more slots
+  const loadMoreSlots = useCallback(() => {
+    const allDates = getDateRange(startDate, endDate);
+    const nextStartIndex = currentDateIndex + DATES_PER_LOAD;
+    const nextEndIndex = Math.min(nextStartIndex + DATES_PER_LOAD - 1, allDates.length - 1);
+    
+    if (nextStartIndex >= allDates.length) {
+      toast.info('تم تحميل جميع الأوقات المتاحة');
+      return;
+    }
+    
+    const nextStartDate = allDates[nextStartIndex];
+    const nextEndDate = allDates[nextEndIndex];
+    
+    if (selectedRoom === 'all') {
+      loadAllSlotsForDateRange(nextStartDate, nextEndDate, true);
+    } else if (selectedRoom?.isGroup) {
+      loadSlotsForGroup(selectedRoom, nextStartDate, nextEndDate, true);
+    } else if (selectedRoom) {
+      loadSlotsForDateRange(selectedRoom._id, nextStartDate, nextEndDate, true);
+    }
+    
+    setCurrentDateIndex(nextStartIndex);
+  }, [currentDateIndex, startDate, endDate, selectedRoom, loadAllSlotsForDateRange, loadSlotsForGroup, loadSlotsForDateRange, getDateRange]);
+
+  const hasMoreSlots = useCallback(() => {
+    const allDates = getDateRange(startDate, endDate);
+    return (currentDateIndex + DATES_PER_LOAD) < allDates.length;
+  }, [currentDateIndex, startDate, endDate, getDateRange]);
 
   const handleBookSlot = (slot) => {
     if (slot.status === 'booked') {
@@ -461,13 +513,14 @@ function UserPortal() {
                 </span>
               </div>
 
-              {slots.length === 0 ? (
+              {slots.length === 0 && !loadingSlots ? (
                 <div className="no-slots">
                   <Calendar size={48} />
                   <p>لا توجد أوقات متاحة لهذا التاريخ</p>
                   <small>جرب اختيار تاريخ آخر</small>
                 </div>
               ) : (
+                <>
                 <div className="slots-grid">
                   {slots.map((slot) => (
                     <div
@@ -541,11 +594,84 @@ function UserPortal() {
                     </div>
                   ))}
                 </div>
+                
+                {/* Load More Button */}
+                {hasMoreSlots() && (
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    marginTop: '2rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <button
+                      onClick={loadMoreSlots}
+                      disabled={loadingSlots}
+                      style={{
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.875rem 2rem',
+                        borderRadius: '10px',
+                        fontSize: '1rem',
+                        fontWeight: '600',
+                        cursor: loadingSlots ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+                        transition: 'all 0.3s ease',
+                        opacity: loadingSlots ? 0.6 : 1
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!loadingSlots) {
+                          e.target.style.transform = 'translateY(-2px)';
+                          e.target.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.4)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.transform = 'translateY(0)';
+                        e.target.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.3)';
+                      }}
+                    >
+                      {loadingSlots ? (
+                        <>
+                          <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+                          جاري التحميل...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={18} />
+                          تحميل المزيد من الأوقات
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+                
+                {loadingSlots && (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '2rem',
+                    color: '#667eea',
+                    fontSize: '1rem'
+                  }}>
+                    <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: '0.5rem' }} />
+                    <p>جاري تحميل المزيد من الأوقات...</p>
+                  </div>
+                )}
+                </>
               )}
             </div>
           </>
         )}
       </div>
+      
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
 
       {/* Booking Modal */}
       {showBookingModal && selectedSlot && (
