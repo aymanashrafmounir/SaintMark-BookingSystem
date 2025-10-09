@@ -361,11 +361,11 @@ function UserPortal() {
       
       // Reload slots based on current selection
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate);
+        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, startDate, endDate);
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
       } else {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
       }
     } catch (error) {
       toast.error(error.response?.data?.error || 'فشل إرسال طلب الحجز');
