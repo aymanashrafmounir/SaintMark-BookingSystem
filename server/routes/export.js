@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ExcelJS = require('exceljs');
+const puppeteer = require('puppeteer');
 const Room = require('../models/Room');
 const Slot = require('../models/Slot');
 const Booking = require('../models/Booking');
@@ -127,267 +128,71 @@ router.get('/excel', authMiddleware, async (req, res) => {
   }
 });
 
-// Export monthly report (admin only)
-router.get('/monthly-report', authMiddleware, async (req, res) => {
+// Export slots data to Excel with month interval (admin only)
+router.get('/slots/excel', authMiddleware, async (req, res) => {
   try {
-    const { year, month } = req.query;
+    const { startMonth, endMonth } = req.query;
     
-    // Validate year and month
-    if (!year || !month) {
-      return res.status(400).json({ error: 'Year and month are required' });
+    if (!startMonth || !endMonth) {
+      return res.status(400).json({ error: 'يجب تحديد شهر البداية وشهر النهاية' });
     }
 
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    // Parse month strings (format: YYYY-MM)
+    const startDate = new Date(startMonth + '-01');
+    const endDate = new Date(endMonth + '-01');
+    
+    // Set end date to last day of the month
+    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setDate(0);
+
+    // Query slots within the date range
+    const slots = await Slot.find({
+      date: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).populate('roomId', 'name').sort({ date: 1, startTime: 1 });
 
     const workbook = new ExcelJS.Workbook();
-    
-    // Sheet 1: Monthly Summary
-    const summarySheet = workbook.addWorksheet('Monthly Summary');
-    summarySheet.columns = [
-      { header: 'Metric', key: 'metric', width: 30 },
-      { header: 'Value', key: 'value', width: 20 }
+    const worksheet = workbook.addWorksheet('المواعيد');
+
+    // Set columns with Arabic headers
+    worksheet.columns = [
+      { header: 'الخدمة', key: 'serviceName', width: 25 },
+      { header: 'اسم الخادم', key: 'providerName', width: 25 },
+      { header: 'رقم الخادم', key: 'providerNumber', width: 20 },
+      { header: 'التاريخ', key: 'date', width: 15 },
+      { header: 'الوقت', key: 'time', width: 20 },
+      { header: 'المكان', key: 'room', width: 20 },
+      { header: 'النوع', key: 'type', width: 15 },
+      { header: 'الحالة', key: 'status', width: 15 }
     ];
 
-    // Get statistics
-    const totalSlots = await Slot.countDocuments({
-      date: { $gte: startDate, $lte: endDate }
-    });
-
-    const bookedSlots = await Slot.countDocuments({
-      date: { $gte: startDate, $lte: endDate },
-      status: 'booked'
-    });
-
-    const availableSlots = await Slot.countDocuments({
-      date: { $gte: startDate, $lte: endDate },
-      status: 'available'
-    });
-
-    const totalBookings = await Booking.countDocuments({
-      date: { $gte: startDate, $lte: endDate }
-    });
-
-    const approvedBookings = await Booking.countDocuments({
-      date: { $gte: startDate, $lte: endDate },
-      status: 'approved'
-    });
-
-    const rejectedBookings = await Booking.countDocuments({
-      date: { $gte: startDate, $lte: endDate },
-      status: 'rejected'
-    });
-
-    const pendingBookings = await Booking.countDocuments({
-      date: { $gte: startDate, $lte: endDate },
-      status: 'pending'
-    });
-
-    // Add summary data
-    summarySheet.addRows([
-      { metric: 'Report Period', value: `${year}-${month.toString().padStart(2, '0')}` },
-      { metric: 'Total Slots', value: totalSlots },
-      { metric: 'Booked Slots', value: bookedSlots },
-      { metric: 'Available Slots', value: availableSlots },
-      { metric: 'Booking Rate', value: totalSlots > 0 ? `${((bookedSlots / totalSlots) * 100).toFixed(2)}%` : '0%' },
-      { metric: 'Total Bookings', value: totalBookings },
-      { metric: 'Approved Bookings', value: approvedBookings },
-      { metric: 'Rejected Bookings', value: rejectedBookings },
-      { metric: 'Pending Bookings', value: pendingBookings },
-      { metric: 'Approval Rate', value: totalBookings > 0 ? `${((approvedBookings / totalBookings) * 100).toFixed(2)}%` : '0%' }
-    ]);
-
-    // Sheet 2: Daily Breakdown
-    const dailySheet = workbook.addWorksheet('Daily Breakdown');
-    dailySheet.columns = [
-      { header: 'Date', key: 'date', width: 15 },
-      { header: 'Total Slots', key: 'totalSlots', width: 15 },
-      { header: 'Booked Slots', key: 'bookedSlots', width: 15 },
-      { header: 'Available Slots', key: 'availableSlots', width: 15 },
-      { header: 'Booking Rate', key: 'bookingRate', width: 15 },
-      { header: 'Total Bookings', key: 'totalBookings', width: 15 },
-      { header: 'Approved', key: 'approved', width: 15 },
-      { header: 'Rejected', key: 'rejected', width: 15 },
-      { header: 'Pending', key: 'pending', width: 15 }
-    ];
-
-    // Generate daily data
-    const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      const dayStart = new Date(currentDate);
-      const dayEnd = new Date(currentDate);
-      dayEnd.setHours(23, 59, 59);
-
-      const dayTotalSlots = await Slot.countDocuments({
-        date: { $gte: dayStart, $lte: dayEnd }
-      });
-
-      const dayBookedSlots = await Slot.countDocuments({
-        date: { $gte: dayStart, $lte: dayEnd },
-        status: 'booked'
-      });
-
-      const dayAvailableSlots = await Slot.countDocuments({
-        date: { $gte: dayStart, $lte: dayEnd },
-        status: 'available'
-      });
-
-      const dayTotalBookings = await Booking.countDocuments({
-        date: { $gte: dayStart, $lte: dayEnd }
-      });
-
-      const dayApprovedBookings = await Booking.countDocuments({
-        date: { $gte: dayStart, $lte: dayEnd },
-        status: 'approved'
-      });
-
-      const dayRejectedBookings = await Booking.countDocuments({
-        date: { $gte: dayStart, $lte: dayEnd },
-        status: 'rejected'
-      });
-
-      const dayPendingBookings = await Booking.countDocuments({
-        date: { $gte: dayStart, $lte: dayEnd },
-        status: 'pending'
-      });
-
-      const bookingRate = dayTotalSlots > 0 ? `${((dayBookedSlots / dayTotalSlots) * 100).toFixed(2)}%` : '0%';
-
-      dailySheet.addRow({
-        date: currentDate.toLocaleDateString(),
-        totalSlots: dayTotalSlots,
-        bookedSlots: dayBookedSlots,
-        availableSlots: dayAvailableSlots,
-        bookingRate: bookingRate,
-        totalBookings: dayTotalBookings,
-        approved: dayApprovedBookings,
-        rejected: dayRejectedBookings,
-        pending: dayPendingBookings
-      });
-
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    // Sheet 3: Room Performance
-    const roomSheet = workbook.addWorksheet('Room Performance');
-    roomSheet.columns = [
-      { header: 'Room Name', key: 'roomName', width: 25 },
-      { header: 'Total Slots', key: 'totalSlots', width: 15 },
-      { header: 'Booked Slots', key: 'bookedSlots', width: 15 },
-      { header: 'Available Slots', key: 'availableSlots', width: 15 },
-      { header: 'Booking Rate', key: 'bookingRate', width: 15 },
-      { header: 'Total Bookings', key: 'totalBookings', width: 15 },
-      { header: 'Approved', key: 'approved', width: 15 },
-      { header: 'Rejected', key: 'rejected', width: 15 },
-      { header: 'Pending', key: 'pending', width: 15 }
-    ];
-
-    // Get room performance data
-    const rooms = await Room.find();
-    for (const room of rooms) {
-      const roomTotalSlots = await Slot.countDocuments({
-        roomId: room._id,
-        date: { $gte: startDate, $lte: endDate }
-      });
-
-      const roomBookedSlots = await Slot.countDocuments({
-        roomId: room._id,
-        date: { $gte: startDate, $lte: endDate },
-        status: 'booked'
-      });
-
-      const roomAvailableSlots = await Slot.countDocuments({
-        roomId: room._id,
-        date: { $gte: startDate, $lte: endDate },
-        status: 'available'
-      });
-
-      const roomTotalBookings = await Booking.countDocuments({
-        roomId: room._id,
-        date: { $gte: startDate, $lte: endDate }
-      });
-
-      const roomApprovedBookings = await Booking.countDocuments({
-        roomId: room._id,
-        date: { $gte: startDate, $lte: endDate },
-        status: 'approved'
-      });
-
-      const roomRejectedBookings = await Booking.countDocuments({
-        roomId: room._id,
-        date: { $gte: startDate, $lte: endDate },
-        status: 'rejected'
-      });
-
-      const roomPendingBookings = await Booking.countDocuments({
-        roomId: room._id,
-        date: { $gte: startDate, $lte: endDate },
-        status: 'pending'
-      });
-
-      const roomBookingRate = roomTotalSlots > 0 ? `${((roomBookedSlots / roomTotalSlots) * 100).toFixed(2)}%` : '0%';
-
-      roomSheet.addRow({
-        roomName: room.name,
-        totalSlots: roomTotalSlots,
-        bookedSlots: roomBookedSlots,
-        availableSlots: roomAvailableSlots,
-        bookingRate: roomBookingRate,
-        totalBookings: roomTotalBookings,
-        approved: roomApprovedBookings,
-        rejected: roomRejectedBookings,
-        pending: roomPendingBookings
-      });
-    }
-
-    // Sheet 4: Detailed Bookings
-    const bookingsSheet = workbook.addWorksheet('Detailed Bookings');
-    bookingsSheet.columns = [
-      { header: 'ID', key: 'id', width: 30 },
-      { header: 'User Name', key: 'userName', width: 25 },
-      { header: 'Room', key: 'room', width: 25 },
-      { header: 'Date', key: 'date', width: 15 },
-      { header: 'Start Time', key: 'startTime', width: 15 },
-      { header: 'End Time', key: 'endTime', width: 15 },
-      { header: 'Service Name', key: 'serviceName', width: 25 },
-      { header: 'Provider Name', key: 'providerName', width: 25 },
-      { header: 'Status', key: 'status', width: 15 },
-      { header: 'Created At', key: 'createdAt', width: 20 },
-      { header: 'Updated At', key: 'updatedAt', width: 20 }
-    ];
-
-    const monthlyBookings = await Booking.find({
-      date: { $gte: startDate, $lte: endDate }
-    })
-      .populate('roomId', 'name')
-      .sort({ date: -1 });
-    
-    monthlyBookings.forEach(booking => {
-      bookingsSheet.addRow({
-        id: booking._id.toString(),
-        userName: booking.userName,
-        room: booking.roomId?.name || 'N/A',
-        date: new Date(booking.date).toLocaleDateString(),
-        startTime: booking.startTime,
-        endTime: booking.endTime,
-        serviceName: booking.serviceName,
-        providerName: booking.providerName,
-        status: booking.status,
-        createdAt: booking.createdAt.toLocaleString(),
-        updatedAt: booking.updatedAt.toLocaleString()
+    // Add data rows
+    slots.forEach(slot => {
+      const startTime = slot.startTime;
+      const endTime = slot.endTime;
+      const timeRange = `${startTime} - ${endTime}`;
+      
+      worksheet.addRow({
+        serviceName: slot.serviceName || '',
+        providerName: slot.providerName || '',
+        providerNumber: '', // This field doesn't exist in the model, leaving empty
+        date: new Date(slot.date).toLocaleDateString('ar-EG'),
+        time: timeRange,
+        room: slot.roomId?.name || 'غير محدد',
+        type: slot.type === 'weekly' ? 'أسبوعي' : 'مرة واحدة',
+        status: slot.status === 'available' ? 'متاح' : 'محجوز'
       });
     });
 
     // Style headers
-    [summarySheet, dailySheet, roomSheet, bookingsSheet].forEach(sheet => {
-      sheet.getRow(1).font = { bold: true };
-      sheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF4472C4' }
-      };
-      sheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-    });
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4472C4' }
+    };
 
     // Set response headers
     res.setHeader(
@@ -396,132 +201,199 @@ router.get('/monthly-report', authMiddleware, async (req, res) => {
     );
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename=monthly-report-${year}-${month.toString().padStart(2, '0')}.xlsx`
+      `attachment; filename=مواعيد-${startMonth}-إلى-${endMonth}-${Date.now()}.xlsx`
     );
 
     // Write to response
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error('Monthly report export error:', error);
-    res.status(500).json({ error: 'Failed to export monthly report' });
+    console.error('Export slots error:', error);
+    res.status(500).json({ error: 'فشل تصدير المواعيد' });
   }
 });
 
-// Export all months report (admin only)
-router.get('/all-months-report', authMiddleware, async (req, res) => {
+// Export slots data to PDF with month interval (admin only)
+router.get('/slots/pdf', authMiddleware, async (req, res) => {
   try {
-    const { year } = req.query;
+    const { startMonth, endMonth } = req.query;
     
-    if (!year) {
-      return res.status(400).json({ error: 'Year is required' });
+    if (!startMonth || !endMonth) {
+      return res.status(400).json({ error: 'يجب تحديد شهر البداية وشهر النهاية' });
     }
 
-    const workbook = new ExcelJS.Workbook();
+    // Parse month strings (format: YYYY-MM)
+    const startDate = new Date(startMonth + '-01');
+    const endDate = new Date(endMonth + '-01');
     
-    // Create a sheet for each month
-    for (let month = 1; month <= 12; month++) {
-      const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0, 23, 59, 59);
-      
-      const monthName = new Date(year, month - 1).toLocaleString('default', { month: 'long' });
-      const sheet = workbook.addWorksheet(`${monthName} ${year}`);
-      
-      sheet.columns = [
-        { header: 'Date', key: 'date', width: 15 },
-        { header: 'Total Slots', key: 'totalSlots', width: 15 },
-        { header: 'Booked Slots', key: 'bookedSlots', width: 15 },
-        { header: 'Available Slots', key: 'availableSlots', width: 15 },
-        { header: 'Booking Rate', key: 'bookingRate', width: 15 },
-        { header: 'Total Bookings', key: 'totalBookings', width: 15 },
-        { header: 'Approved', key: 'approved', width: 15 },
-        { header: 'Rejected', key: 'rejected', width: 15 },
-        { header: 'Pending', key: 'pending', width: 15 }
-      ];
+    // Set end date to last day of the month
+    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setDate(0);
 
-      // Generate daily data for the month
-      const currentDate = new Date(startDate);
-      while (currentDate <= endDate) {
-        const dayStart = new Date(currentDate);
-        const dayEnd = new Date(currentDate);
-        dayEnd.setHours(23, 59, 59);
-
-        const dayTotalSlots = await Slot.countDocuments({
-          date: { $gte: dayStart, $lte: dayEnd }
-        });
-
-        const dayBookedSlots = await Slot.countDocuments({
-          date: { $gte: dayStart, $lte: dayEnd },
-          status: 'booked'
-        });
-
-        const dayAvailableSlots = await Slot.countDocuments({
-          date: { $gte: dayStart, $lte: dayEnd },
-          status: 'available'
-        });
-
-        const dayTotalBookings = await Booking.countDocuments({
-          date: { $gte: dayStart, $lte: dayEnd }
-        });
-
-        const dayApprovedBookings = await Booking.countDocuments({
-          date: { $gte: dayStart, $lte: dayEnd },
-          status: 'approved'
-        });
-
-        const dayRejectedBookings = await Booking.countDocuments({
-          date: { $gte: dayStart, $lte: dayEnd },
-          status: 'rejected'
-        });
-
-        const dayPendingBookings = await Booking.countDocuments({
-          date: { $gte: dayStart, $lte: dayEnd },
-          status: 'pending'
-        });
-
-        const bookingRate = dayTotalSlots > 0 ? `${((dayBookedSlots / dayTotalSlots) * 100).toFixed(2)}%` : '0%';
-
-        sheet.addRow({
-          date: currentDate.toLocaleDateString(),
-          totalSlots: dayTotalSlots,
-          bookedSlots: dayBookedSlots,
-          availableSlots: dayAvailableSlots,
-          bookingRate: bookingRate,
-          totalBookings: dayTotalBookings,
-          approved: dayApprovedBookings,
-          rejected: dayRejectedBookings,
-          pending: dayPendingBookings
-        });
-
-        currentDate.setDate(currentDate.getDate() + 1);
+    // Query slots within the date range
+    const slots = await Slot.find({
+      date: {
+        $gte: startDate,
+        $lte: endDate
       }
+    }).populate('roomId', 'name').sort({ date: 1, startTime: 1 });
 
-      // Style headers
-      sheet.getRow(1).font = { bold: true };
-      sheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF4472C4' }
-      };
-      sheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-    }
+    // Generate HTML content for PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>تقرير المواعيد</title>
+        <style>
+          body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            direction: rtl;
+            text-align: right;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+          }
+          .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 24px;
+          }
+          .header p {
+            color: #666;
+            margin: 5px 0;
+            font-size: 14px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 12px;
+          }
+          th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: right;
+          }
+          th {
+            background-color: #4472C4;
+            color: white;
+            font-weight: bold;
+          }
+          tr:nth-child(even) {
+            background-color: #f9f9f9;
+          }
+          .summary {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+          }
+          .summary h3 {
+            margin-top: 0;
+            color: #333;
+          }
+          .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 16px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>تقرير المواعيد</h1>
+          <p>من ${startMonth} إلى ${endMonth}</p>
+          <p>تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}</p>
+        </div>
+        
+        ${slots.length > 0 ? `
+          <table>
+            <thead>
+              <tr>
+                <th>الخدمة</th>
+                <th>اسم الخادم</th>
+                <th>رقم الخادم</th>
+                <th>التاريخ</th>
+                <th>الوقت</th>
+                <th>المكان</th>
+                <th>النوع</th>
+                <th>الحالة</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${slots.map(slot => `
+                <tr>
+                  <td>${slot.serviceName || ''}</td>
+                  <td>${slot.providerName || ''}</td>
+                  <td></td>
+                  <td>${new Date(slot.date).toLocaleDateString('ar-EG')}</td>
+                  <td>${slot.startTime} - ${slot.endTime}</td>
+                  <td>${slot.roomId?.name || 'غير محدد'}</td>
+                  <td>${slot.type === 'weekly' ? 'أسبوعي' : 'مرة واحدة'}</td>
+                  <td>${slot.status === 'available' ? 'متاح' : 'محجوز'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="summary">
+            <h3>ملخص التقرير</h3>
+            <p><strong>إجمالي المواعيد:</strong> ${slots.length}</p>
+            <p><strong>المواعيد المتاحة:</strong> ${slots.filter(s => s.status === 'available').length}</p>
+            <p><strong>المواعيد المحجوزة:</strong> ${slots.filter(s => s.status === 'booked').length}</p>
+            <p><strong>المواعيد الأسبوعية:</strong> ${slots.filter(s => s.type === 'weekly').length}</p>
+            <p><strong>المواعيد لمرة واحدة:</strong> ${slots.filter(s => s.type === 'single').length}</p>
+          </div>
+        ` : `
+          <div class="no-data">
+            <p>لا توجد مواعيد في الفترة المحددة</p>
+          </div>
+        `}
+      </body>
+      </html>
+    `;
+
+    // Generate PDF using Puppeteer
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20mm',
+        right: '15mm',
+        bottom: '20mm',
+        left: '15mm'
+      }
+    });
+    
+    await browser.close();
 
     // Set response headers
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    );
+    res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename=yearly-report-${year}.xlsx`
+      `attachment; filename=مواعيد-${startMonth}-إلى-${endMonth}-${Date.now()}.pdf`
     );
 
-    // Write to response
-    await workbook.xlsx.write(res);
-    res.end();
+    res.send(pdfBuffer);
   } catch (error) {
-    console.error('All months report export error:', error);
-    res.status(500).json({ error: 'Failed to export all months report' });
+    console.error('Export slots PDF error:', error);
+    res.status(500).json({ error: 'فشل تصدير المواعيد إلى PDF' });
   }
 });
 
