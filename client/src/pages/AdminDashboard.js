@@ -36,6 +36,17 @@ const formatTimeRange = (startTime, endTime) => {
   return `\u202A${start}\u202C → \u202A${end}\u202C`;
 };
 
+// Predefined time slots for filtering
+const TIME_SLOTS = [
+  { value: '', label: 'جميع الاوقات' },
+  { value: '10:00-12:00', label: '10:00 ص → 12:00 م' },
+  { value: '12:00-14:00', label: '12:00 م → 2:00 م' },
+  { value: '14:00-16:00', label: '2:00 م → 4:00 م' },
+  { value: '16:00-18:00', label: '4:00 م → 6:00 م' },
+  { value: '18:00-20:00', label: '6:00 م → 8:00 م' },
+  { value: '20:00-22:00', label: '8:00 م → 10:00 م' }
+];
+
 function AdminDashboard({ setIsAuthenticated }) {
   const [activeTab, setActiveTab] = useState('rooms');
   const [rooms, setRooms] = useState([]);
@@ -85,6 +96,7 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [dateRangeStart, setDateRangeStart] = useState('');
   const [dateRangeEnd, setDateRangeEnd] = useState('');
   const [timeSlots, setTimeSlots] = useState([{ startTime: '', endTime: '' }]);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
   
   // Slot filters
   const [slotFilters, setSlotFilters] = useState({
@@ -942,9 +954,21 @@ function AdminDashboard({ setIsAuthenticated }) {
       toast.info('⏳ جاري تحميل المواعيد...');
     }
     setSlotsCurrentPage(1); // Reset to page 1 when filters change
-    loadSlots(1, slotFilters);
+    
+    // Update slotFilters with time slot selection
+    const updatedFilters = { ...slotFilters };
+    if (selectedTimeSlot) {
+      const [startTime, endTime] = selectedTimeSlot.split('-');
+      updatedFilters.startTime = startTime;
+      updatedFilters.endTime = endTime;
+    } else {
+      updatedFilters.startTime = '';
+      updatedFilters.endTime = '';
+    }
+    
+    loadSlots(1, updatedFilters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadSlots, hasActiveFilters, slots.length]);
+  }, [loadSlots, hasActiveFilters, slots.length, selectedTimeSlot, slotFilters]);
 
   const clearSlotFilters = () => {
     const emptyFilters = {
@@ -960,6 +984,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       endTime: ''
     };
     setSlotFilters(emptyFilters);
+    setSelectedTimeSlot(''); // Clear time slot selection
     setSlotsCurrentPage(1);
     loadSlots(1, emptyFilters);
   };
@@ -1499,27 +1524,18 @@ function AdminDashboard({ setIsAuthenticated }) {
                   </div>
 
                   <div className="filter-item">
-                    <label>وقت البداية</label>
-                    <input
-                      type="time"
-                      value={slotFilters.startTime}
-                      onChange={(e) => {
-                        setSlotFilters({ ...slotFilters, startTime: e.target.value });
-                      }}
-                      placeholder="تصفية بوقت البداية"
-                    />
-                  </div>
-
-                  <div className="filter-item">
-                    <label>وقت النهاية</label>
-                    <input
-                      type="time"
-                      value={slotFilters.endTime}
-                      onChange={(e) => {
-                        setSlotFilters({ ...slotFilters, endTime: e.target.value });
-                      }}
-                      placeholder="تصفية بوقت النهاية"
-                    />
+                    <label>⏰ الوقت</label>
+                    <select
+                      value={selectedTimeSlot}
+                      onChange={(e) => setSelectedTimeSlot(e.target.value)}
+                      className="time-select"
+                    >
+                      {TIME_SLOTS.map(slot => (
+                        <option key={slot.value} value={slot.value}>
+                          {slot.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="filter-item">

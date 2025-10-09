@@ -788,6 +788,27 @@
   outline: none;
 }
 
+.time-select {
+  padding: 0.625rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+  background: white;
+  color: #333;
+  font-family: inherit;
+}
+
+.time-select:focus {
+  border-color: #4472C4;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(68, 114, 196, 0.2);
+}
+
+.time-select:hover {
+  border-color: #b0b0b0;
+}
+
 .filter-stats {
   display: flex;
   align-items: center;
