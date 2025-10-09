@@ -31,6 +31,16 @@ const formatTimeRange = (startTime, endTime) => {
   return `\u202A${start}\u202C → \u202A${end}\u202C`;
 };
 
+// Time slot options
+const timeSlotOptions = [
+  { value: '10:00-12:00', label: '10:00 ص → 12:00 م' },
+  { value: '12:00-14:00', label: '12:00 م → 2:00 م' },
+  { value: '14:00-16:00', label: '2:00 م → 4:00 م' },
+  { value: '16:00-18:00', label: '4:00 م → 6:00 م' },
+  { value: '18:00-20:00', label: '6:00 م → 8:00 م' },
+  { value: '20:00-22:00', label: '8:00 م → 10:00 م' }
+];
+
 function UserPortal() {
   // Helper to get date + days
   const getDatePlusDays = (days) => {
@@ -42,8 +52,8 @@ function UserPortal() {
   const [rooms, setRooms] = useState([]);
   const [roomGroups, setRoomGroups] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(getDatePlusDays(7)); // Default: +7 days
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -107,18 +117,25 @@ function UserPortal() {
     }
   }, []);
 
-  const loadSlotsForDateRange = useCallback(async (roomId, startDate, endDate, append = false, page = 1) => {
+  const loadSlotsForDateRange = useCallback(async (roomId, date, timeSlot = '', append = false, page = 1) => {
     try {
       setLoadingSlots(true);
       
       // Use server-side pagination
       const params = {
         roomId,
-        dateRangeStart: startDate,
-        dateRangeEnd: endDate,
+        dateRangeStart: date,
+        dateRangeEnd: date, // Same date for single day
         page,
         limit: 10
       };
+      
+      // Add time filter if selected
+      if (timeSlot) {
+        const [startTime, endTime] = timeSlot.split('-');
+        params.startTime = startTime;
+        params.endTime = endTime;
+      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -132,17 +149,24 @@ function UserPortal() {
     }
   }, []);
 
-  const loadAllSlotsForDateRange = useCallback(async (startDate, endDate, append = false, page = 1) => {
+  const loadAllSlotsForDateRange = useCallback(async (date, timeSlot = '', append = false, page = 1) => {
     try {
       setLoadingSlots(true);
       
       // Use server-side pagination for all slots
       const params = {
-        dateRangeStart: startDate,
-        dateRangeEnd: endDate,
+        dateRangeStart: date,
+        dateRangeEnd: date, // Same date for single day
         page,
         limit: 10
       };
+      
+      // Add time filter if selected
+      if (timeSlot) {
+        const [startTime, endTime] = timeSlot.split('-');
+        params.startTime = startTime;
+        params.endTime = endTime;
+      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -157,7 +181,7 @@ function UserPortal() {
     }
   }, []);
 
-  const loadSlotsForGroup = useCallback(async (group, startDate, endDate, append = false, page = 1) => {
+  const loadSlotsForGroup = useCallback(async (group, date, timeSlot = '', append = false, page = 1) => {
     try {
       if (!group.rooms || group.rooms.length === 0) {
         setSlots([]);
@@ -170,11 +194,18 @@ function UserPortal() {
       const roomIds = group.rooms.map(room => room._id);
       const params = {
         roomIds: roomIds.join(','),
-        dateRangeStart: startDate,
-        dateRangeEnd: endDate,
+        dateRangeStart: date,
+        dateRangeEnd: date, // Same date for single day
         page,
         limit: 10
       };
+      
+      // Add time filter if selected
+      if (timeSlot) {
+        const [startTime, endTime] = timeSlot.split('-');
+        params.startTime = startTime;
+        params.endTime = endTime;
+      }
       
       const response = await slotAPI.getPublic(params);
       const newSlots = response.data.slots;
@@ -207,42 +238,42 @@ function UserPortal() {
     socketService.onBookingApproved((booking) => {
       toast.success('تمت الموافقة على حجز!');
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate);
+        loadAllSlotsForDateRange(selectedDate, selectedTimeSlot);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, startDate, endDate);
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
       } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+        loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot);
       }
     });
 
     socketService.onBookingRejected(() => {
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate);
+        loadAllSlotsForDateRange(selectedDate, selectedTimeSlot);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, startDate, endDate);
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
       } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+        loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot);
       }
     });
-  }, [loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup, selectedRoom, startDate, endDate]);
+  }, [loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
 
   // Load initial slots (first page only)
   useEffect(() => {
-    if (startDate && endDate && rooms.length > 0) {
+    if (selectedDate && rooms.length > 0) {
       setCurrentSlotsPage(1);
       setSlots([]); // Clear previous slots
       // Reset pagination total immediately when filters change
       setSlotsPagination(prev => ({ ...prev, total: 0 }));
       
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate, false, 1);
+        loadAllSlotsForDateRange(selectedDate, selectedTimeSlot, false, 1);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, startDate, endDate, false, 1);
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
       } else if (selectedRoom) {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate, false, 1);
+        loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
       }
     }
-  }, [selectedRoom, startDate, endDate, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup]);
+  }, [selectedRoom, selectedDate, selectedTimeSlot, rooms, loadAllSlotsForDateRange, loadSlotsForDateRange, loadSlotsForGroup]);
 
   // Function to load more slots (pagination)
   const loadMoreSlots = useCallback(() => {
@@ -254,15 +285,15 @@ function UserPortal() {
     }
     
     if (selectedRoom === 'all') {
-      loadAllSlotsForDateRange(startDate, endDate, true, nextPage);
+      loadAllSlotsForDateRange(selectedDate, selectedTimeSlot, true, nextPage);
     } else if (selectedRoom?.isGroup) {
-      loadSlotsForGroup(selectedRoom, startDate, endDate, true, nextPage);
+      loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, true, nextPage);
     } else if (selectedRoom) {
-      loadSlotsForDateRange(selectedRoom._id, startDate, endDate, true, nextPage);
+      loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot, true, nextPage);
     }
     
     setCurrentSlotsPage(nextPage);
-  }, [currentSlotsPage, slotsPagination.totalPages, startDate, endDate, selectedRoom, loadAllSlotsForDateRange, loadSlotsForGroup, loadSlotsForDateRange]);
+  }, [currentSlotsPage, slotsPagination.totalPages, selectedDate, selectedTimeSlot, selectedRoom, loadAllSlotsForDateRange, loadSlotsForGroup, loadSlotsForDateRange]);
 
   const hasMoreSlots = useCallback(() => {
     return currentSlotsPage < slotsPagination.totalPages;
@@ -321,11 +352,11 @@ function UserPortal() {
       
       // Reload slots based on current selection
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateRange(startDate, endDate);
+        loadAllSlotsForDateRange(selectedDate, selectedTimeSlot);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, startDate, endDate);
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
       } else {
-        loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+        loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot);
       }
     } catch (error) {
       toast.error(error.response?.data?.error || 'فشل إرسال طلب الحجز');
@@ -341,13 +372,13 @@ function UserPortal() {
     setCurrentSlotsPage(1);
     
     if (selectedRoom === 'all') {
-      loadAllSlotsForDateRange(startDate, endDate);
+      loadAllSlotsForDateRange(selectedDate, selectedTimeSlot);
       toast.info('تم تحديث الأوقات');
     } else if (selectedRoom?.isGroup) {
-      loadSlotsForGroup(selectedRoom, startDate, endDate);
+      loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
       toast.info('تم تحديث الأوقات');
     } else if (selectedRoom) {
-      loadSlotsForDateRange(selectedRoom._id, startDate, endDate);
+      loadSlotsForDateRange(selectedRoom._id, selectedDate, selectedTimeSlot);
       toast.info('تم تحديث الأوقات');
     }
   };
@@ -488,18 +519,12 @@ function UserPortal() {
 
               <div className="filter-group">
                 <label>
-                  <Clock size={18} /> من تاريخ
+                  <Calendar size={18} /> اختر التاريخ
                 </label>
                 <input
                   type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    // If end date is before start date, update it
-                    if (endDate < e.target.value) {
-                      setEndDate(e.target.value);
-                    }
-                  }}
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   min={getTodayDate()}
                   className="date-input"
                 />
@@ -507,15 +532,20 @@ function UserPortal() {
 
               <div className="filter-group">
                 <label>
-                  <Clock size={18} /> إلى تاريخ
+                  <Clock size={18} /> اختر الوقت
                 </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  min={startDate}
-                  className="date-input"
-                />
+                <select
+                  value={selectedTimeSlot}
+                  onChange={(e) => setSelectedTimeSlot(e.target.value)}
+                  className="time-select"
+                >
+                  <option value="">جميع الأوقات</option>
+                  {timeSlotOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <button className="btn-refresh" onClick={handleRefresh}>

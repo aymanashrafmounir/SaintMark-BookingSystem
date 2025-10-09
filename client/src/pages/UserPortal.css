@@ -230,7 +230,8 @@
 }
 
 .room-select,
-.date-input {
+.date-input,
+.time-select {
   width: 100%;
   padding: 0.75rem 1rem;
   border: 1px solid #dadce0;
@@ -243,15 +244,26 @@
 }
 
 .room-select:focus,
-.date-input:focus {
+.date-input:focus,
+.time-select:focus {
   outline: none;
   border-color: #1a73e8;
   box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
 }
 
 .room-select:hover,
-.date-input:hover {
+.date-input:hover,
+.time-select:hover {
   border-color: #5f6368;
+}
+
+.time-select {
+  cursor: pointer;
+}
+
+.time-select option {
+  padding: 0.5rem;
+  font-size: 0.875rem;
 }
 
 .btn-refresh {
