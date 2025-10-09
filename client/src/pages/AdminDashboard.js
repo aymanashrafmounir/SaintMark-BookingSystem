@@ -807,6 +807,23 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   };
 
+  const handleExportSlotsJSON = async () => {
+    try {
+      const response = await exportAPI.downloadSlotsJSON();
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `slots-export-${Date.now()}.json`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success('تم تحميل ملف JSON للفترات بنجاح');
+    } catch (error) {
+      console.error('Export slots JSON error:', error);
+      toast.error('فشل تصدير الفترات');
+    }
+  };
+
   const openEditRoom = (room) => {
     setEditingRoom(room);
     setRoomForm({ name: room.name, isEnabled: room.isEnabled });
@@ -1335,12 +1352,19 @@ function AdminDashboard({ setIsAuthenticated }) {
               <span className="badge">{pendingBookings.length}</span>
             )}
           </button>
-          <button
-            className="tab export-tab"
-            onClick={handleExportExcel}
-          >
-            <Download size={20} /> تصدير
-          </button>
+          <div className="export-dropdown">
+            <button className="tab export-tab">
+              <Download size={20} /> تصدير
+            </button>
+            <div className="export-dropdown-content">
+              <button onClick={handleExportExcel}>
+                <Download size={16} /> تصدير Excel
+              </button>
+              <button onClick={handleExportSlotsJSON}>
+                <Download size={16} /> تصدير الفترات JSON
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="tab-content">
