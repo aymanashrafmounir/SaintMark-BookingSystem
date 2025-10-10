@@ -34,12 +34,12 @@ const formatTimeRange = (startTime, endTime) => {
 // Predefined time slots
 const TIME_SLOTS = [
   { value: '', label: 'جميع الاوقات' },
-  { value: '10:00-12:00', label: '10:00 ص → 12:00 م' },
-  { value: '12:00-14:00', label: '12:00 م → 2:00 م' },
-  { value: '14:00-16:00', label: '2:00 م → 4:00 م' },
-  { value: '16:00-18:00', label: '4:00 م → 6:00 م' },
-  { value: '18:00-20:00', label: '6:00 م → 8:00 م' },
-  { value: '20:00-22:00', label: '8:00 م → 10:00 م' }
+  { value: '10:00-12:00', label: formatTimeRange('10:00', '12:00') },
+  { value: '12:00-14:00', label: formatTimeRange('12:00', '14:00') },
+  { value: '14:00-16:00', label: formatTimeRange('14:00', '16:00') },
+  { value: '16:00-18:00', label: formatTimeRange('16:00', '18:00') },
+  { value: '18:00-20:00', label: formatTimeRange('18:00', '20:00') },
+  { value: '20:00-22:00', label: formatTimeRange('20:00', '22:00') }
 ];
 
 function UserPortal() {
