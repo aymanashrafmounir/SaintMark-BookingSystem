@@ -61,8 +61,10 @@ function AdminDashboard({ setIsAuthenticated }) {
     title: '',
     message: '',
     onConfirm: null,
-    confirmButtonText: 'تأكيد'
+    confirmButtonText: 'تأكيد',
+    requiresPassword: false
   });
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const [roomForm, setRoomForm] = useState({ name: '', isEnabled: true });
   const [groupForm, setGroupForm] = useState({ name: '', rooms: [], isEnabled: true });
@@ -133,12 +135,21 @@ function AdminDashboard({ setIsAuthenticated }) {
   const bookingsPerPage = 50;
 
   // Open confirmation modal
-  const openConfirmModal = (title, message, onConfirm, confirmButtonText = 'تأكيد') => {
-    setConfirmConfig({ title, message, onConfirm, confirmButtonText });
+  const openConfirmModal = (title, message, onConfirm, confirmButtonText = 'تأكيد', requiresPassword = false) => {
+    setConfirmConfig({ title, message, onConfirm, confirmButtonText, requiresPassword });
+    setConfirmPassword('');
     setShowConfirmModal(true);
   };
 
   const handleConfirm = () => {
+    // Check password if required
+    if (confirmConfig.requiresPassword) {
+      if (confirmPassword !== '2001') {
+        toast.error('كلمة المرور غير صحيحة. يجب كتابة 2001 للتأكيد.');
+        return;
+      }
+    }
+    
     console.log('handleConfirm called, onConfirm function:', confirmConfig.onConfirm);
     if (confirmConfig.onConfirm) {
       console.log('Executing onConfirm function...');
@@ -147,6 +158,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       console.log('No onConfirm function found');
     }
     setShowConfirmModal(false);
+    setConfirmPassword('');
   };
 
   const loadRooms = useCallback(async () => {
@@ -315,7 +327,7 @@ function AdminDashboard({ setIsAuthenticated }) {
           await roomAPI.delete(id);
           toast.success('تم حذف المكان بنجاح');
           loadRooms();
-          loadSlots();
+          loadSlots(slotsCurrentPage, slotFilters);
         } catch (error) {
           toast.error('فشل حذف المكان');
         }
@@ -638,7 +650,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       setDateRangeStart('');
       setDateRangeEnd('');
       setTimeSlots([{ startTime: '', endTime: '' }]);
-      loadSlots();
+      loadSlots(slotsCurrentPage, slotFilters);
     } catch (error) {
       toast.error(error.response?.data?.error || 'Operation failed');
     }
@@ -694,7 +706,7 @@ function AdminDashboard({ setIsAuthenticated }) {
           try {
             await slotAPI.delete(slot._id);
             toast.success('تم حذف الموعد بنجاح');
-            loadSlots();
+            loadSlots(slotsCurrentPage, slotFilters);
           } catch (error) {
             toast.error('فشل حذف الموعد');
           }
@@ -709,7 +721,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       toast.success('Slot deleted successfully');
       setShowDeleteModal(false);
       setSlotToDelete(null);
-      loadSlots();
+      loadSlots(slotsCurrentPage, slotFilters);
     } catch (error) {
       toast.error('Failed to delete slot');
     }
@@ -734,7 +746,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       toast.success(`تم حذف ${matchingSlots.length} موعد أسبوعي بنجاح!`);
       setShowDeleteModal(false);
       setSlotToDelete(null);
-      loadSlots();
+      loadSlots(slotsCurrentPage, slotFilters);
     } catch (error) {
       toast.error('فشل حذف المواعيد الأسبوعية');
     }
@@ -759,7 +771,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       await bookingAPI.approve(id);
       toast.success('تمت الموافقة على الحجز بنجاح');
       loadBookings();
-      loadSlots();
+      loadSlots(slotsCurrentPage, slotFilters);
     } catch (error) {
       toast.error('فشلت الموافقة على الحجز');
     }
@@ -1032,6 +1044,52 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   };
 
+  // Select All functions
+  const selectAllRooms = () => {
+    const allRoomIds = rooms.map(room => room._id);
+    setSlotFilters({ 
+      ...slotFilters, 
+      roomIds: allRoomIds 
+    });
+  };
+
+  const deselectAllRooms = () => {
+    setSlotFilters({ 
+      ...slotFilters, 
+      roomIds: [] 
+    });
+  };
+
+  const selectAllTimeRanges = () => {
+    const allTimeRanges = timeRangeOptions.map(tr => tr.value);
+    setSlotFilters({ 
+      ...slotFilters, 
+      timeRanges: allTimeRanges 
+    });
+  };
+
+  const deselectAllTimeRanges = () => {
+    setSlotFilters({ 
+      ...slotFilters, 
+      timeRanges: [] 
+    });
+  };
+
+  const selectAllDays = () => {
+    const allDays = [0, 1, 2, 3, 4, 5, 6]; // Sunday to Saturday
+    setSlotFilters({ 
+      ...slotFilters, 
+      daysOfWeek: allDays 
+    });
+  };
+
+  const deselectAllDays = () => {
+    setSlotFilters({ 
+      ...slotFilters, 
+      daysOfWeek: [] 
+    });
+  };
+
   // Bulk selection functions
   const toggleSlotSelection = (slotId) => {
     if (selectedSlots.includes(slotId)) {
@@ -1073,11 +1131,13 @@ function AdminDashboard({ setIsAuthenticated }) {
           
           toast.success(`✅ تم حذف ${selectedSlots.length} موعد بنجاح!`);
           setSelectedSlots([]);
-          loadSlots();
+          loadSlots(slotsCurrentPage, slotFilters);
         } catch (error) {
           toast.error('فشل حذف بعض المواعيد');
         }
-      }
+      },
+      'حذف',
+      true // requiresPassword
     );
   };
 
@@ -1241,7 +1301,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       
       setShowBulkAssignModal(false);
       setBulkAssignForm({ serviceName: '', providerName: '' });
-      loadSlots();
+      loadSlots(slotsCurrentPage, slotFilters);
     } catch (error) {
       toast.error('فشل تعيين المواعيد');
     }
@@ -1289,7 +1349,7 @@ function AdminDashboard({ setIsAuthenticated }) {
           
           const updatedCount = response.data.count || slotsPagination.total;
           toast.success(`✅ تم جعل ${updatedCount} موعد متاح بنجاح!`);
-          await loadSlots();
+          await loadSlots(slotsCurrentPage, slotFilters);
         } catch (error) {
           console.error('Bulk make available filtered error:', error);
           toast.error('فشل جعل المواعيد متاحة');
@@ -1332,11 +1392,13 @@ function AdminDashboard({ setIsAuthenticated }) {
           const deletedCount = response.data.count || slotsPagination.total;
           
           toast.success(`✅ تم حذف ${deletedCount} موعد بنجاح!`);
-          loadSlots();
+          loadSlots(slotsCurrentPage, slotFilters);
         } catch (error) {
           toast.error('فشل حذف المواعيد');
         }
-      }
+      },
+      'حذف',
+      true // requiresPassword
     );
   };
 
@@ -1558,7 +1620,27 @@ function AdminDashboard({ setIsAuthenticated }) {
                 </div>
                 <div className="filters-grid">
                   <div className="filter-item rooms-filter">
-                    <label>المكان</label>
+                    <div className="filter-header">
+                      <label>المكان</label>
+                      <div className="select-all-buttons">
+                        <button 
+                          type="button"
+                          className="btn-select-all"
+                          onClick={selectAllRooms}
+                          disabled={slotFilters.roomIds.length === rooms.length}
+                        >
+                          اختيار الكل
+                        </button>
+                        <button 
+                          type="button"
+                          className="btn-deselect-all"
+                          onClick={deselectAllRooms}
+                          disabled={slotFilters.roomIds.length === 0}
+                        >
+                          إلغاء الكل
+                        </button>
+                      </div>
+                    </div>
                     <div className="rooms-checkboxes">
                       {rooms.map((room) => (
                         <label key={room._id} className="room-checkbox">
@@ -1579,7 +1661,27 @@ function AdminDashboard({ setIsAuthenticated }) {
                   </div>
 
                   <div className="filter-item time-ranges-filter">
-                    <label>الفترات الزمنية</label>
+                    <div className="filter-header">
+                      <label>الفترات الزمنية</label>
+                      <div className="select-all-buttons">
+                        <button 
+                          type="button"
+                          className="btn-select-all"
+                          onClick={selectAllTimeRanges}
+                          disabled={slotFilters.timeRanges.length === timeRangeOptions.length}
+                        >
+                          اختيار الكل
+                        </button>
+                        <button 
+                          type="button"
+                          className="btn-deselect-all"
+                          onClick={deselectAllTimeRanges}
+                          disabled={slotFilters.timeRanges.length === 0}
+                        >
+                          إلغاء الكل
+                        </button>
+                      </div>
+                    </div>
                     <div className="time-ranges-checkboxes">
                       {timeRangeOptions.map((timeRange) => (
                         <label key={timeRange.value} className="time-range-checkbox">
@@ -1683,9 +1785,29 @@ function AdminDashboard({ setIsAuthenticated }) {
                     </div>
                     
                     <div className="days-of-week-filter">
-                      <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#555', marginBottom: '0.5rem', display: 'block' }}>
-                        اختر الأيام (داخل الفترة):
-                      </label>
+                      <div className="filter-header">
+                        <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#555', marginBottom: '0.5rem', display: 'block' }}>
+                          اختر الأيام (داخل الفترة):
+                        </label>
+                        <div className="select-all-buttons">
+                          <button 
+                            type="button"
+                            className="btn-select-all"
+                            onClick={selectAllDays}
+                            disabled={slotFilters.daysOfWeek.length === 7}
+                          >
+                            اختيار الكل
+                          </button>
+                          <button 
+                            type="button"
+                            className="btn-deselect-all"
+                            onClick={deselectAllDays}
+                            disabled={slotFilters.daysOfWeek.length === 0}
+                          >
+                            إلغاء الكل
+                          </button>
+                        </div>
+                      </div>
                       <div className="days-checkboxes">
                         {[
                           { value: 0, label: 'الأحد', shortLabel: 'أحد' },
@@ -2721,16 +2843,35 @@ function AdminDashboard({ setIsAuthenticated }) {
               <div className="warning-icon">⚠️</div>
               <p className="confirm-message">{confirmConfig.message}</p>
               
+              {confirmConfig.requiresPassword && (
+                <div className="password-input-container">
+                  <label htmlFor="confirmPassword">كلمة المرور للتأكيد:</label>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="اكتب 2001 للتأكيد"
+                    className="password-input"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+              
               <div className="confirm-actions">
                 <button 
                   className="btn-secondary"
-                  onClick={() => setShowConfirmModal(false)}
+                  onClick={() => {
+                    setShowConfirmModal(false);
+                    setConfirmPassword('');
+                  }}
                 >
                   إلغاء
                 </button>
                 <button 
                   className="btn-danger"
                   onClick={handleConfirm}
+                  disabled={confirmConfig.requiresPassword && confirmPassword !== '2001'}
                 >
                   {confirmConfig.confirmButtonText}
                 </button>
