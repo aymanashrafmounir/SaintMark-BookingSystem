@@ -1337,13 +1337,6 @@ function AdminDashboard({ setIsAuthenticated }) {
             params.timeRanges = params.timeRanges.join(',');
           }
           
-          console.log('Bulk make available - sending params:', params);
-          console.log('Bulk make available - updates:', {
-            serviceName: '',
-            providerName: '',
-            status: 'available',
-            bookedBy: null
-          });
           
           const response = await slotAPI.bulkUpdate({
             filters: params,
@@ -1355,7 +1348,6 @@ function AdminDashboard({ setIsAuthenticated }) {
             }
           });
           
-          console.log('Bulk make available - response:', response.data);
           const updatedCount = response.data.count || slotsPagination.total;
           toast.success(`✅ تم جعل ${updatedCount} موعد متاح بنجاح!`);
           await loadSlots(slotsCurrentPage, slotFilters);

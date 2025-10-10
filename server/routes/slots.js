@@ -361,7 +361,7 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     // Build query from filters
     const query = {};
     
-    if (filters.roomIds) {
+    if (filters.roomIds && filters.roomIds.length > 0) {
       // Handle multiple room IDs (for group filtering)
       let roomIdArray;
       if (Array.isArray(filters.roomIds)) {
@@ -402,7 +402,7 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     let slotsToUpdate = await Slot.find(query);
     
     // Filter by days of week if specified
-    if (filters.daysOfWeek) {
+    if (filters.daysOfWeek && filters.daysOfWeek.length > 0) {
       let selectedDays;
       if (Array.isArray(filters.daysOfWeek)) {
         selectedDays = filters.daysOfWeek.map(d => parseInt(d));
@@ -416,7 +416,7 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     }
     
     // Filter by time ranges if specified
-    if (filters.timeRanges) {
+    if (filters.timeRanges && filters.timeRanges.length > 0) {
       let selectedTimeRanges;
       if (Array.isArray(filters.timeRanges)) {
         selectedTimeRanges = filters.timeRanges;
@@ -440,19 +440,12 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       bookedBy: isMakingAvailable ? null : (updates.providerName || null)
     };
 
-    console.log('Bulk update - slotsToUpdate count:', slotsToUpdate.length);
-    console.log('Bulk update - updateData:', updateData);
-    console.log('Bulk update - isMakingAvailable:', isMakingAvailable);
-
     const slotsToUpdateIds = slotsToUpdate.map(slot => slot._id);
-    console.log('Bulk update - slotsToUpdateIds count:', slotsToUpdateIds.length);
     
     const result = await Slot.updateMany(
       { _id: { $in: slotsToUpdateIds } },
       { $set: updateData }
     );
-    
-    console.log('Bulk update - result:', result);
 
     res.json({
       success: true,
@@ -523,7 +516,7 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     // Build query from filters
     const query = {};
     
-    if (filters.roomIds) {
+    if (filters.roomIds && filters.roomIds.length > 0) {
       // Handle multiple room IDs (for group filtering)
       let roomIdArray;
       if (Array.isArray(filters.roomIds)) {
