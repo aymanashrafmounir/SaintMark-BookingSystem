@@ -363,7 +363,12 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     
     if (filters.roomIds) {
       // Handle multiple room IDs (for group filtering)
-      const roomIdArray = filters.roomIds.split(',').map(id => id.trim());
+      let roomIdArray;
+      if (Array.isArray(filters.roomIds)) {
+        roomIdArray = filters.roomIds;
+      } else {
+        roomIdArray = filters.roomIds.split(',').map(id => id.trim());
+      }
       query.roomId = { $in: roomIdArray };
     } else if (filters.roomId) {
       query.roomId = filters.roomId;
@@ -398,7 +403,12 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     
     // Filter by days of week if specified
     if (filters.daysOfWeek) {
-      const selectedDays = filters.daysOfWeek.split(',').map(d => parseInt(d));
+      let selectedDays;
+      if (Array.isArray(filters.daysOfWeek)) {
+        selectedDays = filters.daysOfWeek.map(d => parseInt(d));
+      } else {
+        selectedDays = filters.daysOfWeek.split(',').map(d => parseInt(d));
+      }
       slotsToUpdate = slotsToUpdate.filter(slot => {
         const slotDay = new Date(slot.date).getDay();
         return selectedDays.includes(slotDay);
@@ -407,7 +417,12 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     
     // Filter by time ranges if specified
     if (filters.timeRanges) {
-      const selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim());
+      let selectedTimeRanges;
+      if (Array.isArray(filters.timeRanges)) {
+        selectedTimeRanges = filters.timeRanges;
+      } else {
+        selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim());
+      }
       slotsToUpdate = slotsToUpdate.filter(slot => {
         // Check if slot's start time falls within any of the selected time ranges
         return selectedTimeRanges.some(timeRange => {
@@ -502,7 +517,12 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     
     if (filters.roomIds) {
       // Handle multiple room IDs (for group filtering)
-      const roomIdArray = filters.roomIds.split(',').map(id => id.trim());
+      let roomIdArray;
+      if (Array.isArray(filters.roomIds)) {
+        roomIdArray = filters.roomIds;
+      } else {
+        roomIdArray = filters.roomIds.split(',').map(id => id.trim());
+      }
       query.roomId = { $in: roomIdArray };
     } else if (filters.roomId) {
       query.roomId = filters.roomId;
@@ -537,7 +557,12 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     
     // Filter by days of week if specified
     if (filters.daysOfWeek) {
-      const selectedDays = filters.daysOfWeek.split(',').map(d => parseInt(d));
+      let selectedDays;
+      if (Array.isArray(filters.daysOfWeek)) {
+        selectedDays = filters.daysOfWeek.map(d => parseInt(d));
+      } else {
+        selectedDays = filters.daysOfWeek.split(',').map(d => parseInt(d));
+      }
       slotsToDelete = slotsToDelete.filter(slot => {
         const slotDay = new Date(slot.date).getDay();
         return selectedDays.includes(slotDay);
@@ -546,7 +571,12 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     
     // Filter by time ranges if specified
     if (filters.timeRanges) {
-      const selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim());
+      let selectedTimeRanges;
+      if (Array.isArray(filters.timeRanges)) {
+        selectedTimeRanges = filters.timeRanges;
+      } else {
+        selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim());
+      }
       slotsToDelete = slotsToDelete.filter(slot => {
         // Check if slot's start time falls within any of the selected time ranges
         return selectedTimeRanges.some(timeRange => {
