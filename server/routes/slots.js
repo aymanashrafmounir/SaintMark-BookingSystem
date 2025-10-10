@@ -440,11 +440,19 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       bookedBy: isMakingAvailable ? null : (updates.providerName || null)
     };
 
+    console.log('Bulk update - slotsToUpdate count:', slotsToUpdate.length);
+    console.log('Bulk update - updateData:', updateData);
+    console.log('Bulk update - isMakingAvailable:', isMakingAvailable);
+
     const slotsToUpdateIds = slotsToUpdate.map(slot => slot._id);
+    console.log('Bulk update - slotsToUpdateIds count:', slotsToUpdateIds.length);
+    
     const result = await Slot.updateMany(
       { _id: { $in: slotsToUpdateIds } },
       { $set: updateData }
     );
+    
+    console.log('Bulk update - result:', result);
 
     res.json({
       success: true,

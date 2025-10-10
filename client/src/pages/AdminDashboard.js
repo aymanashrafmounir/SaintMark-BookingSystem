@@ -1337,6 +1337,14 @@ function AdminDashboard({ setIsAuthenticated }) {
             params.timeRanges = params.timeRanges.join(',');
           }
           
+          console.log('Bulk make available - sending params:', params);
+          console.log('Bulk make available - updates:', {
+            serviceName: '',
+            providerName: '',
+            status: 'available',
+            bookedBy: null
+          });
+          
           const response = await slotAPI.bulkUpdate({
             filters: params,
             updates: {
@@ -1347,6 +1355,7 @@ function AdminDashboard({ setIsAuthenticated }) {
             }
           });
           
+          console.log('Bulk make available - response:', response.data);
           const updatedCount = response.data.count || slotsPagination.total;
           toast.success(`✅ تم جعل ${updatedCount} موعد متاح بنجاح!`);
           await loadSlots(slotsCurrentPage, slotFilters);
@@ -2016,11 +2025,13 @@ function AdminDashboard({ setIsAuthenticated }) {
                 </table>
               </div>
 
-              <div className="filter-helper-message">
-                <Calendar size={32} />
-                <p>👆 اختر الفلاتر أعلاه ثم اضغط "تطبيق التصفية" لعرض المواعيد</p>
-                <small>يمكنك ترك الفلاتر فارغة لعرض جميع المواعيد</small>
-              </div>
+              {slots.length === 0 && slotsPagination.total === 0 && (
+                <div className="filter-helper-message">
+                  <Calendar size={32} />
+                  <p>👆 اختر الفلاتر أعلاه ثم اضغط "تطبيق التصفية" لعرض المواعيد</p>
+                  <small>يمكنك ترك الفلاتر فارغة لعرض جميع المواعيد</small>
+                </div>
+              )}
 
               {/* Slots Pagination */}
               {slotsPagination.totalPages > 1 && (
