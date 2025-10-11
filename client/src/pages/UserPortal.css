@@ -688,6 +688,10 @@
     padding: 1rem;
   }
 
+  .toggle-switch{
+    margin-top: 6px;
+  }
+
   .filters-section {
     padding: 1.5rem;
     flex-direction: column;
