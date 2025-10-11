@@ -58,7 +58,9 @@ function UserPortal() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [showAvailableOnly, setShowAvailableOnly] = useState(true); // Default enabled
+  
+  // Show available places only toggle (default enabled)
+  const [showAvailableOnly, setShowAvailableOnly] = useState(true);
   
   // Pagination for slots
   const [slotsPagination, setSlotsPagination] = useState({ 
@@ -134,7 +136,12 @@ function UserPortal() {
       }
       
       const response = await slotAPI.getPublic(params);
-      const newSlots = response.data.slots;
+      let newSlots = response.data.slots;
+      
+      // Filter out booked slots if showAvailableOnly is enabled
+      if (showAvailableOnly) {
+        newSlots = newSlots.filter(slot => slot.status === 'available');
+      }
       
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
       setSlotsPagination(response.data.pagination);
@@ -143,7 +150,7 @@ function UserPortal() {
     } finally {
       setLoadingSlots(false);
     }
-  }, []);
+  }, [showAvailableOnly]);
 
   const loadAllSlotsForDateAndTime = useCallback(async (date, timeSlot, append = false, page = 1) => {
     try {
@@ -165,7 +172,12 @@ function UserPortal() {
       }
       
       const response = await slotAPI.getPublic(params);
-      const newSlots = response.data.slots;
+      let newSlots = response.data.slots;
+      
+      // Filter out booked slots if showAvailableOnly is enabled
+      if (showAvailableOnly) {
+        newSlots = newSlots.filter(slot => slot.status === 'available');
+      }
       
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
       setSlotsPagination(response.data.pagination);
@@ -175,7 +187,7 @@ function UserPortal() {
     } finally {
       setLoadingSlots(false);
     }
-  }, []);
+  }, [showAvailableOnly]);
 
   const loadSlotsForGroup = useCallback(async (group, date, timeSlot, append = false, page = 1) => {
     try {
@@ -204,7 +216,12 @@ function UserPortal() {
       }
       
       const response = await slotAPI.getPublic(params);
-      const newSlots = response.data.slots;
+      let newSlots = response.data.slots;
+      
+      // Filter out booked slots if showAvailableOnly is enabled
+      if (showAvailableOnly) {
+        newSlots = newSlots.filter(slot => slot.status === 'available');
+      }
       
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
       setSlotsPagination(response.data.pagination);
@@ -214,7 +231,7 @@ function UserPortal() {
     } finally {
       setLoadingSlots(false);
     }
-  }, []);
+  }, [showAvailableOnly]);
 
   useEffect(() => {
     loadRooms();
@@ -269,7 +286,7 @@ function UserPortal() {
         loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
       }
     }
-  }, [selectedRoom, selectedDate, selectedTimeSlot, rooms, loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup]);
+  }, [selectedRoom, selectedDate, selectedTimeSlot, showAvailableOnly, rooms, loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup]);
 
   // Function to load more slots (pagination)
   const loadMoreSlots = useCallback(() => {
@@ -543,21 +560,22 @@ function UserPortal() {
                 </select>
               </div>
 
-              <div className="filter-group toggle-group">
-                <label className="toggle-label">
-                  <CheckCircle size={18} /> تشوف الأماكن المتاحة فقط
+              <div className="filter-group">
+                <label>
+                  <CheckCircle size={18} /> فلترة النتائج
                 </label>
                 <div className="toggle-container">
-                  <input
-                    type="checkbox"
-                    id="showAvailableOnly"
-                    checked={showAvailableOnly}
-                    onChange={(e) => setShowAvailableOnly(e.target.checked)}
-                    className="toggle-input"
-                  />
-                  <label htmlFor="showAvailableOnly" className="toggle-switch">
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={showAvailableOnly}
+                      onChange={(e) => setShowAvailableOnly(e.target.checked)}
+                    />
                     <span className="toggle-slider"></span>
                   </label>
+                  <span className="toggle-label">
+                    {showAvailableOnly ? 'الأماكن المتاحة فقط' : 'جميع الأماكن'}
+                  </span>
                 </div>
               </div>
 
@@ -570,31 +588,32 @@ function UserPortal() {
               <div className="section-header">
                 <h2>
                   {selectedRoom === 'all' 
-                    ? (selectedTimeSlot ? 'الأوقات المتاحة في جميع الأماكن' : 'جميع الأوقات المتاحة في جميع الأماكن')
+                    ? (selectedTimeSlot 
+                        ? (showAvailableOnly ? 'الأوقات المتاحة في جميع الأماكن' : 'جميع الأوقات في جميع الأماكن')
+                        : (showAvailableOnly ? 'الأوقات المتاحة في جميع الأماكن' : 'جميع الأوقات في جميع الأماكن'))
                     : selectedRoom?.isGroup
-                    ? (selectedTimeSlot ? `الأوقات المتاحة في مجموعة ${selectedRoom?.name}` : `جميع الأوقات المتاحة في مجموعة ${selectedRoom?.name}`)
-                    : (selectedTimeSlot ? `الأوقات المتاحة في ${selectedRoom?.name}` : `جميع الأوقات المتاحة في ${selectedRoom?.name}`)}
+                    ? (selectedTimeSlot 
+                        ? (showAvailableOnly ? `الأوقات المتاحة في مجموعة ${selectedRoom?.name}` : `جميع الأوقات في مجموعة ${selectedRoom?.name}`)
+                        : (showAvailableOnly ? `الأوقات المتاحة في مجموعة ${selectedRoom?.name}` : `جميع الأوقات في مجموعة ${selectedRoom?.name}`))
+                    : (selectedTimeSlot 
+                        ? (showAvailableOnly ? `الأوقات المتاحة في ${selectedRoom?.name}` : `جميع الأوقات في ${selectedRoom?.name}`)
+                        : (showAvailableOnly ? `الأوقات المتاحة في ${selectedRoom?.name}` : `جميع الأوقات في ${selectedRoom?.name}`))}
                 </h2>
                 <span className="slot-count">
-                  {loadingSlots && slotsPagination.total === 0 ? 'جاري التحميل...' : 
-                    showAvailableOnly ? 
-                      `${slots.filter(slot => slot.status === 'available').length} متاح` : 
-                      `${slotsPagination.total} متاح`}
+                  {loadingSlots && slotsPagination.total === 0 ? 'جاري التحميل...' : `${slotsPagination.total} ${showAvailableOnly ? 'متاح' : 'إجمالي'}`}
                 </span>
               </div>
 
-              {(slots.length === 0 || (showAvailableOnly && slots.filter(slot => slot.status === 'available').length === 0)) && !loadingSlots ? (
+              {slots.length === 0 && !loadingSlots ? (
                 <div className="no-slots">
                   <Calendar size={48} />
-                  <p>{showAvailableOnly ? 'لا توجد أوقات متاحة للحجز' : 'لا توجد أوقات متاحة لهذا التاريخ'}</p>
-                  <small>{showAvailableOnly ? 'جرب إلغاء التصفية أو اختيار تاريخ آخر' : 'جرب اختيار تاريخ آخر'}</small>
+                  <p>{showAvailableOnly ? 'لا توجد أوقات متاحة لهذا التاريخ' : 'لا توجد أوقات لهذا التاريخ'}</p>
+                  <small>{showAvailableOnly ? 'جرب اختيار تاريخ آخر أو إلغاء فلترة الأماكن المتاحة' : 'جرب اختيار تاريخ آخر'}</small>
                 </div>
               ) : (
                 <>
                 <div className="slots-grid">
-                  {slots
-                    .filter(slot => showAvailableOnly ? slot.status === 'available' : true)
-                    .map((slot) => (
+                  {slots.map((slot) => (
                     <div
                       key={slot._id}
                       className={`slot-card ${slot.status}`}
