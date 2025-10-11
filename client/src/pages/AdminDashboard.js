@@ -46,6 +46,7 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [bookingsPagination, setBookingsPagination] = useState({ total: 0, page: 1, limit: 50, totalPages: 0 });
   const [pendingBookings, setPendingBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSlotModal, setShowSlotModal] = useState(false);
@@ -181,6 +182,7 @@ function AdminDashboard({ setIsAuthenticated }) {
 
   const loadSlots = useCallback(async (page = slotsCurrentPage, filters = slotFilters) => {
     try {
+      setSlotsLoading(true);
       const params = {
         page,
         limit: slotsPerPage,
@@ -221,6 +223,8 @@ function AdminDashboard({ setIsAuthenticated }) {
     } catch (error) {
       console.error('Load slots error:', error);
       toast.error('فشل تحميل المواعيد');
+    } finally {
+      setSlotsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotsCurrentPage, slotsPerPage]);
@@ -1844,8 +1848,12 @@ function AdminDashboard({ setIsAuthenticated }) {
                       عرض {slotsPagination.total} موعد
                     </span>
                   </div>
-                  <button className="btn-apply-filters" onClick={applySlotFilters}>
-                    🔍 تطبيق التصفية
+                  <button 
+                    className="btn-apply-filters" 
+                    onClick={applySlotFilters}
+                    disabled={slotsLoading}
+                  >
+                    {slotsLoading ? '⏳ جاري التحميل...' : '🔍 تطبيق التصفية'}
                   </button>
                 </div>
               </div>
@@ -1967,7 +1975,17 @@ function AdminDashboard({ setIsAuthenticated }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedSlots.map((slot) => (
+                    {slotsLoading ? (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ fontSize: '24px' }}>⏳</div>
+                            <div>جاري تحميل المواعيد...</div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedSlots.map((slot) => (
                       <tr key={slot._id} className={selectedSlots.includes(slot._id) ? 'selected-row' : ''}>
                         <td>
                           <input
@@ -2012,7 +2030,8 @@ function AdminDashboard({ setIsAuthenticated }) {
                           </div>
                         </td>
                       </tr>
-                      ))}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
