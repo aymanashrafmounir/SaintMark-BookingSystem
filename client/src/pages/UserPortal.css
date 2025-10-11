@@ -841,9 +841,10 @@
 /* Responsive toggle styles */
 @media (max-width: 768px) {
   .toggle-container {
-    flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+    margin-top: 8px;
+    
   }
   
   .toggle-label {
