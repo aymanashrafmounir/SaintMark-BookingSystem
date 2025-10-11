@@ -779,6 +779,7 @@
   width: 50px;
   height: 24px;
   cursor: pointer;
+  margin-top: 6px;
 }
 
 .toggle-switch input {
