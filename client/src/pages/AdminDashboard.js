@@ -102,6 +102,9 @@ function AdminDashboard({ setIsAuthenticated }) {
     timeRanges: [] // Array of selected time ranges
   });
 
+  // Show available places only toggle
+  const [showAvailableOnly, setShowAvailableOnly] = useState(false);
+
   // Predefined time ranges for filtering
   const timeRangeOptions = [
     { value: '10:00-12:00', label: '10:00 ص → 12:00 م', startTime: '10:00', endTime: '12:00' },
@@ -188,6 +191,11 @@ function AdminDashboard({ setIsAuthenticated }) {
         limit: slotsPerPage,
         ...filters
       };
+
+      // Add available status filter if toggle is enabled
+      if (showAvailableOnly) {
+        params.status = 'available';
+      }
       
       // Convert daysOfWeek array to comma-separated string
       if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
@@ -227,7 +235,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       setSlotsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slotsCurrentPage, slotsPerPage]);
+  }, [slotsCurrentPage, slotsPerPage, showAvailableOnly]);
 
   const loadBookings = useCallback(async (page = bookingsCurrentPage) => {
     try {
@@ -1848,6 +1856,20 @@ function AdminDashboard({ setIsAuthenticated }) {
                       عرض {slotsPagination.total} موعد
                     </span>
                   </div>
+                  
+                  {/* Available Only Toggle */}
+                  <div className="available-only-toggle">
+                    <label className="toggle-label">
+                      <input
+                        type="checkbox"
+                        checked={showAvailableOnly}
+                        onChange={(e) => setShowAvailableOnly(e.target.checked)}
+                        className="toggle-checkbox"
+                      />
+                      <span className="toggle-text">🔓 تشوف الأماكن المتاحة فقط</span>
+                    </label>
+                  </div>
+
                   <button 
                     className="btn-apply-filters" 
                     onClick={applySlotFilters}
