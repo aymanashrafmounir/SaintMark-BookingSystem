@@ -28,14 +28,6 @@ const formatTime12Hour = (time24) => {
   return `${hour12}:${minutes} ${ampm}`;
 };
 
-// Helper function to format time range properly for RTL
-const formatTimeRange = (startTime, endTime) => {
-  const start = formatTime12Hour(startTime);
-  const end = formatTime12Hour(endTime);
-  // Force LTR for each time using embedding characters
-  return `\u202A${start}\u202C → \u202A${end}\u202C`;
-};
-
 function AdminDashboard({ setIsAuthenticated }) {
   const [activeTab, setActiveTab] = useState('rooms');
   const [rooms, setRooms] = useState([]);
@@ -104,15 +96,24 @@ function AdminDashboard({ setIsAuthenticated }) {
 
   // Show available places only toggle
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
+  
+  // Helper function to format time range properly for RTL
+  const formatTimeRange = (startTime, endTime) => {
+    const start = formatTime12Hour(startTime);
+    const end = formatTime12Hour(endTime);
+    // Force LTR for each time using embedding characters
+    return `\u202A${start}\u202C → \u202A${end}\u202C`;
+  };
+
 
   // Predefined time ranges for filtering
   const timeRangeOptions = [
-    { value: '10:00-12:00', label: '10:00 ص → 12:00 م', startTime: '10:00', endTime: '12:00' },
-    { value: '12:00-14:00', label: '12:00 م → 2:00 م', startTime: '12:00', endTime: '14:00' },
-    { value: '14:00-16:00', label: '2:00 م → 4:00 م', startTime: '14:00', endTime: '16:00' },
-    { value: '16:00-18:00', label: '4:00 م → 6:00 م', startTime: '16:00', endTime: '18:00' },
-    { value: '18:00-20:00', label: '6:00 م → 8:00 م', startTime: '18:00', endTime: '20:00' },
-    { value: '20:00-22:00', label: '8:00 م → 10:00 م', startTime: '20:00', endTime: '22:00' }
+    { value: '10:00-12:00', label: formatTimeRange('10:00', '12:00'), startTime: '10:00', endTime: '12:00' },
+    { value: '12:00-14:00', label: formatTimeRange('12:00', '14:00'), startTime: '12:00', endTime: '14:00' },
+    { value: '14:00-16:00', label: formatTimeRange('14:00', '16:00'), startTime: '14:00', endTime: '16:00' },
+    { value: '16:00-18:00', label: formatTimeRange('16:00', '18:00'), startTime: '16:00', endTime: '18:00' },
+    { value: '18:00-20:00', label: formatTimeRange('18:00', '20:00'), startTime: '18:00', endTime: '20:00' },
+    { value: '20:00-22:00', label: formatTimeRange('20:00', '22:00'), startTime: '20:00', endTime: '22:00' }
   ];
 
   // Pagination for slots
