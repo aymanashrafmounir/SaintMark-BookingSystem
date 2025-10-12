@@ -28,10 +28,30 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' })); // Increased limit for bulk operations
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roombooking')
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+// MongoDB Connection with better timeout settings
+const mongoOptions = {
+  serverSelectionTimeoutMS: 30000, // 30 seconds
+  socketTimeoutMS: 45000, // 45 seconds
+  connectTimeoutMS: 30000, // 30 seconds
+  maxPoolSize: 10, // Maintain up to 10 socket connections
+  bufferMaxEntries: 0, // Disable mongoose buffering
+  bufferCommands: false, // Disable mongoose buffering
+};
+
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roombooking', mongoOptions)
+  .then(() => {
+    console.log('✅ MongoDB Connected');
+    console.log('📊 Database:', mongoose.connection.db.databaseName);
+  })
+  .catch(err => {
+    console.error('❌ MongoDB Connection Error:', err);
+    console.log('🔄 Retrying connection in 5 seconds...');
+    setTimeout(() => {
+      mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roombooking', mongoOptions)
+        .then(() => console.log('✅ MongoDB Reconnected'))
+        .catch(err => console.error('❌ MongoDB Reconnection Failed:', err));
+    }, 5000);
+  });
 
 // Socket.IO Connection
 io.on('connection', (socket) => {

@@ -29,6 +29,14 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
+      // Don't try to refresh if the original request was already a refresh request
+      if (originalRequest.url?.includes('/auth/refresh')) {
+        // Refresh failed - clear token and redirect to login
+        localStorage.removeItem('adminToken');
+        window.dispatchEvent(new CustomEvent('authExpired'));
+        return Promise.reject(error);
+      }
+      
       try {
         // Attempt to refresh token
         const refreshResponse = await api.post('/auth/refresh');
@@ -45,6 +53,7 @@ api.interceptors.response.use(
         localStorage.removeItem('adminToken');
         // Dispatch custom event to notify components
         window.dispatchEvent(new CustomEvent('authExpired'));
+        return Promise.reject(refreshError);
       }
     }
     
@@ -56,6 +65,7 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   refresh: () => api.post('/auth/refresh'),
+  validate: () => api.get('/auth/validate'),
   changePassword: (data) => api.post('/auth/change-password', data)
 };
 

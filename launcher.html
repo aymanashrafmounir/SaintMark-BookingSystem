@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saint Mark Booking System - Launcher</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        .logo {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .status {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+        }
+        .status h3 {
+            margin: 0 0 10px 0;
+            color: #28a745;
+        }
+        .status p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .launch-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .launch-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .instructions {
+            background: #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .instructions h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .instructions ol {
+            color: #6c757d;
+            line-height: 1.6;
+        }
+        .instructions code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🏛️ Saint Mark</div>
+        <div class="subtitle">Booking System</div>
+        
+        <div class="status">
+            <h3>✅ Ready to Launch</h3>
+            <p>Your booking system is ready to run locally</p>
+            <p>No additional setup required!</p>
+        </div>
+
+        <a href="http://localhost:3000" class="launch-btn" target="_blank">
+            🚀 Launch Application
+        </a>
+
+        <div class="instructions">
+            <h4>📋 Quick Start Instructions:</h4>
+            <ol>
+                <li>Double-click <code>run_local.bat</code> to start everything</li>
+                <li>Or run <code>run_local.ps1</code> in PowerShell</li>
+                <li>The application will open automatically in your browser</li>
+                <li>Frontend: <code>http://localhost:3000</code></li>
+                <li>Backend: <code>http://localhost:5000</code></li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // Check if the application is running
+        function checkStatus() {
+            fetch('http://localhost:5000/api/health')
+                .then(response => {
+                    if (response.ok) {
+                        document.querySelector('.status h3').textContent = '✅ Application Running';
+                        document.querySelector('.status p').textContent = 'Backend server is active and ready';
+                    }
+                })
+                .catch(() => {
+                    document.querySelector('.status h3').textContent = '⚠️ Start Required';
+                    document.querySelector('.status p').textContent = 'Click the launch button or run the batch file';
+                });
+        }
+
+        // Check status on load
+        checkStatus();
+        
+        // Check status every 5 seconds
+        setInterval(checkStatus, 5000);
+    </script>
+</body>
+</html>
