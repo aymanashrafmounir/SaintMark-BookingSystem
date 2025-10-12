@@ -35,7 +35,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { id: admin._id, username: admin.username },
       process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
+      { expiresIn: '7d' } // Extended to 7 days for better user experience
     );
 
     res.json({
@@ -49,6 +49,43 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Server error during login' });
+  }
+});
+
+// Refresh Token
+router.post('/refresh', async (req, res) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ error: 'No authentication token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const admin = await Admin.findById(decoded.id);
+    
+    if (!admin) {
+      return res.status(401).json({ error: 'Admin not found' });
+    }
+
+    // Generate new token
+    const newToken = jwt.sign(
+      { id: admin._id, username: admin.username },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token: newToken,
+      admin: {
+        id: admin._id,
+        username: admin.username
+      }
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(401).json({ error: 'Invalid or expired token' });
   }
 });
 

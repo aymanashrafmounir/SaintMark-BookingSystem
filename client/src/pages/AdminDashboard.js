@@ -263,6 +263,14 @@ function AdminDashboard({ setIsAuthenticated }) {
 
 
   useEffect(() => {
+    // Check if token exists and is valid
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      toast.error('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.');
+      setIsAuthenticated(false);
+      return;
+    }
+
     // Load rooms and groups initially, but NOT slots (wait for user to apply filters)
     const initialLoad = async () => {
       setLoading(true);
@@ -305,8 +313,17 @@ function AdminDashboard({ setIsAuthenticated }) {
       }
     });
 
+    // Listen for authentication expiration
+    const handleAuthExpired = () => {
+      toast.error('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.');
+      setIsAuthenticated(false);
+    };
+
+    window.addEventListener('authExpired', handleAuthExpired);
+
     return () => {
       socketService.removeListener('new-booking-request');
+      window.removeEventListener('authExpired', handleAuthExpired);
       socketService.removeListener('booking-approved');
     };
   }, [loadRooms, loadRoomGroups, loadBookings, loadSlots, activeTab]);

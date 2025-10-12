@@ -20,9 +20,42 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle 401 responses (token expired)
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Attempt to refresh token
+        const refreshResponse = await api.post('/auth/refresh');
+        const newToken = refreshResponse.data.token;
+        
+        // Update token in localStorage
+        localStorage.setItem('adminToken', newToken);
+        
+        // Retry original request with new token
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh failed - clear token and redirect to login
+        localStorage.removeItem('adminToken');
+        // Dispatch custom event to notify components
+        window.dispatchEvent(new CustomEvent('authExpired'));
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 // Auth APIs
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
+  refresh: () => api.post('/auth/refresh'),
   changePassword: (data) => api.post('/auth/change-password', data)
 };
 
