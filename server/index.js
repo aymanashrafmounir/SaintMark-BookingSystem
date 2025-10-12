@@ -34,7 +34,6 @@ const mongoOptions = {
   socketTimeoutMS: 45000, // 45 seconds
   connectTimeoutMS: 30000, // 30 seconds
   maxPoolSize: 10, // Maintain up to 10 socket connections
-  bufferMaxEntries: 0, // Disable mongoose buffering
   bufferCommands: false, // Disable mongoose buffering
 };
 
