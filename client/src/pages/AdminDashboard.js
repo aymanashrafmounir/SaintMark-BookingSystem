@@ -326,7 +326,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       window.removeEventListener('authExpired', handleAuthExpired);
       socketService.removeListener('booking-approved');
     };
-  }, [loadRooms, loadRoomGroups, loadBookings, loadSlots, activeTab]);
+  }, [loadRooms, loadRoomGroups, loadBookings, loadSlots, activeTab, setIsAuthenticated]);
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
