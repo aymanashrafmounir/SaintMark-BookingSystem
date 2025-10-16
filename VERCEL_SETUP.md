@@ -14,10 +14,10 @@ Set these environment variables in your Vercel dashboard:
 
 ### Example Values:
 ```
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/roombooking
-JWT_SECRET=your-super-secret-jwt-key-here
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-password
+MONGODB_URI=mongodb+srv://bookingadmin:lUiBEeVo9LzGEdhY@bookingcluster.2y1krrh.mongodb.net/?retryWrites=true&w=majority&appName=BookingCluster
+   JWT_SECRET=your-super-secret-jwt-key-here
+   ADMIN_USERNAME=admin
+   ADMIN_PASSWORD=your-secure-password
 ```
 
 ## Deployment Steps
