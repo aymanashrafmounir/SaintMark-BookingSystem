@@ -15,7 +15,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { roomAPI, roomGroupAPI, slotAPI, bookingAPI, exportAPI } from '../services/api';
-import socketService from '../services/socket';
+import pollingService from '../services/polling';
 import './AdminDashboard.css';
 
 // Helper function to convert 24h time to 12h format
@@ -296,17 +296,19 @@ function AdminDashboard({ setIsAuthenticated }) {
     
     initialLoad();
     
-    // Connect to socket
-    socketService.connect();
-    socketService.joinAdmin();
+    // Connect to polling service
+    pollingService.connect();
+    pollingService.joinAdmin();
 
     // Listen for new booking requests
-    socketService.onNewBookingRequest((booking) => {
-      toast.info('تم استلام طلب حجز جديد!');
-      loadBookings();
+    pollingService.onNewBookingRequest((bookings) => {
+      if (bookings && bookings.length > 0) {
+        toast.info('تم استلام طلب حجز جديد!');
+        loadBookings();
+      }
     });
 
-    socketService.onBookingApproved(() => {
+    pollingService.onBookingApproved(() => {
       loadBookings();
       // Only reload slots if we're on the slots tab
       if (activeTab === 'slots') {
@@ -323,9 +325,9 @@ function AdminDashboard({ setIsAuthenticated }) {
     window.addEventListener('authExpired', handleAuthExpired);
 
     return () => {
-      socketService.removeListener('new-booking-request');
+      pollingService.removeListener('new-booking-request');
       window.removeEventListener('authExpired', handleAuthExpired);
-      socketService.removeListener('booking-approved');
+      pollingService.removeListener('booking-approved');
     };
   }, [loadRooms, loadRoomGroups, loadBookings, loadSlots, activeTab, setIsAuthenticated]);
 

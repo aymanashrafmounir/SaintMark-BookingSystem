@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// For production, update REACT_APP_API_URL environment variable with your deployed backend URL
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// For production, this will use the same domain as the frontend (Vercel)
+// For development, use localhost for Vercel dev server
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 // Create axios instance
 const api = axios.create({
@@ -107,10 +108,10 @@ export const slotAPI = {
 export const bookingAPI = {
   getAll: (params = {}) => api.get('/bookings', { params }),
   getPending: () => api.get('/bookings/pending'),
-  create: (data) => api.post('/bookings', data),
+  create: (data) => api.post('/bookings/create', data),
   approve: (id) => api.put(`/bookings/${id}/approve`),
   reject: (id) => api.put(`/bookings/${id}/reject`),
-  delete: (id) => api.delete(`/bookings/${id}`)
+  delete: (id) => api.delete(`/bookings/${id}/delete`)
 };
 
 // Export API

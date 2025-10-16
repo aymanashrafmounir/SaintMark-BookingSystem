@@ -10,7 +10,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { roomAPI, roomGroupAPI, slotAPI, bookingAPI } from '../services/api';
-import socketService from '../services/socket';
+import pollingService from '../services/polling';
 import './UserPortal.css';
 
 // Helper function to convert 24h time to 12h format
@@ -236,19 +236,19 @@ function UserPortal() {
   useEffect(() => {
     loadRooms();
     
-    // Connect to socket for real-time updates
-    socketService.connect();
+    // Connect to polling service for updates
+    pollingService.connect();
 
     return () => {
-      socketService.removeListener('booking-approved');
-      socketService.removeListener('booking-rejected');
+      pollingService.removeListener('booking-approved');
+      pollingService.removeListener('booking-rejected');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
   useEffect(() => {
-    // Setup socket listeners when component mounts or dependencies change
-    socketService.onBookingApproved((booking) => {
+    // Setup polling listeners when component mounts or dependencies change
+    pollingService.onBookingApproved(() => {
       toast.success('تمت الموافقة على حجز!');
       if (selectedRoom === 'all') {
         loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
@@ -259,7 +259,7 @@ function UserPortal() {
       }
     });
 
-    socketService.onBookingRejected(() => {
+    pollingService.onBookingRejected(() => {
       if (selectedRoom === 'all') {
         loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
       } else if (selectedRoom?.isGroup) {
