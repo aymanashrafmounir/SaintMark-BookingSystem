@@ -21,15 +21,14 @@ module.exports = async (req, res) => {
   try {
     await connectDB();
 
-    const { userName, slotId, roomId, startTime, endTime, serviceName, providerName, phoneNumber, date } = req.body;
+    const { slotId, roomId, date, startTime, endTime, userInfo } = req.body;
 
-    if (!userName || !slotId || !roomId || !startTime || !endTime || !serviceName || !providerName || !phoneNumber || !date) {
+    if (!slotId || !roomId || !date || !startTime || !endTime || !userInfo) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    // Validate phone number format
-    if (!/^(010|011|012|015)\d{8}$/.test(phoneNumber)) {
-      return res.status(400).json({ error: 'رقم الهاتف غير صحيح! يجب أن يبدأ بـ 010, 011, 012, أو 015 ويكون 11 رقم' });
+    if (!userInfo.name || !userInfo.email || !userInfo.phone) {
+      return res.status(400).json({ error: 'User information is required' });
     }
 
     // Check if slot exists and is available
@@ -43,15 +42,12 @@ module.exports = async (req, res) => {
     }
 
     const booking = new Booking({
-      userName,
       slotId,
       roomId,
+      date: new Date(date),
       startTime,
       endTime,
-      serviceName,
-      providerName,
-      phoneNumber,
-      date: new Date(date),
+      userInfo,
       status: 'pending'
     });
 
@@ -59,6 +55,41 @@ module.exports = async (req, res) => {
     const populatedBooking = await Booking.findById(booking._id)
       .populate('roomId', 'name')
       .populate('slotId');
+
+    // Send notification to admin
+    try {
+      const fetch = require('node-fetch');
+      const webhookUrl = process.env.NETLIFY_ADMIN_WEBHOOK_URL;
+      
+      if (webhookUrl) {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.NETLIFY_WEBHOOK_SECRET || 'default-secret'}`
+          },
+          body: JSON.stringify({
+            bookingId: booking._id,
+            action: 'new_booking',
+            timestamp: new Date().toISOString(),
+            booking: {
+              id: booking._id,
+              userInfo: booking.userInfo,
+              room: populatedBooking.roomId?.name || 'Unknown Room',
+              date: booking.date,
+              startTime: booking.startTime,
+              endTime: booking.endTime,
+              status: booking.status,
+              createdAt: booking.createdAt
+            }
+          })
+        });
+        console.log('Notification sent to admin for booking:', booking._id);
+      }
+    } catch (notificationError) {
+      console.error('Failed to send notification:', notificationError);
+      // Don't fail the booking if notification fails
+    }
 
     res.status(201).json(populatedBooking);
   } catch (error) {
