@@ -80,6 +80,9 @@ class PollingService {
       case 'booking-rejected':
         this.stopPolling('bookingStatus');
         break;
+      default:
+        // No action needed for unknown events
+        break;
     }
   }
 
