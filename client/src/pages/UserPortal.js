@@ -26,7 +26,6 @@ const TIME_SLOTS = [
 ];
 
 function UserPortal() {
-  const [rooms, setRooms] = useState([]);
   const [roomGroups, setRoomGroups] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState('all');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -43,24 +42,18 @@ function UserPortal() {
     purpose: ''
   });
 
-  // Load rooms and room groups
+  // Load room groups
   useEffect(() => {
-    const loadRooms = async () => {
+    const loadRoomGroups = async () => {
       try {
         setLoading(true);
-        const [roomsResponse, groupsResponse] = await Promise.all([
-          roomAPI.getAll(),
-          roomGroupAPI.getAll()
-        ]);
+        const groupsResponse = await roomGroupAPI.getAll();
         
-        const enabledRooms = roomsResponse.data.filter(room => room.isEnabled);
         const enabledGroups = groupsResponse.data.filter(group => group.isEnabled);
-        
-        setRooms(enabledRooms);
         setRoomGroups(enabledGroups);
         setSelectedRoom('all');
       } catch (error) {
-        console.error('Load rooms error:', error);
+        console.error('Load room groups error:', error);
         const errorMessage = error.response?.data?.error || error.message || 'خطأ في الاتصال';
         toast.error(`فشل تحميل الأماكن: ${errorMessage}`);
       } finally {
@@ -68,7 +61,7 @@ function UserPortal() {
       }
     };
 
-    loadRooms();
+    loadRoomGroups();
   }, []);
 
   const loadAvailableSlots = useCallback(async () => {
