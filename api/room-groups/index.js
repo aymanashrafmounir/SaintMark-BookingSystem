@@ -51,9 +51,25 @@ module.exports = async (req, res) => {
     }
   } catch (error) {
     console.error('Room groups operation error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack
+    });
+    
     if (error.code === 11000) {
       return res.status(400).json({ error: 'Group name already exists' });
     }
-    res.status(500).json({ error: 'Failed to perform room groups operation' });
+    
+    // Check for database connection errors
+    if (error.name === 'MongoNetworkError' || error.message.includes('connection')) {
+      return res.status(503).json({ error: 'Database connection failed' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to perform room groups operation',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
