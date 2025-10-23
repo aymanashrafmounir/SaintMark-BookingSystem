@@ -24,10 +24,5 @@
       "src": "/(.*)",
       "dest": "/client/$1"
     }
-  ],
-  "functions": {
-    "api/**/*.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
