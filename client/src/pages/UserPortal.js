@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { Calendar, Clock } from 'lucide-react';
-import { roomAPI, roomGroupAPI, slotAPI, bookingAPI } from '../services/api';
+import { roomGroupAPI, slotAPI, bookingAPI } from '../services/api';
 import './UserPortal.css';
 
 // Helper function to convert 24h time to 12h format
