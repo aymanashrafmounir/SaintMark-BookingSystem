@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
-import { Calendar, Clock, User, Send, CheckCircle } from 'lucide-react';
+import { Calendar, Clock } from 'lucide-react';
 import { roomAPI, roomGroupAPI, slotAPI, bookingAPI } from '../services/api';
 import './UserPortal.css';
 
@@ -71,14 +71,7 @@ function UserPortal() {
     loadRooms();
   }, []);
 
-  // Load available slots when room, date, or time changes
-  useEffect(() => {
-    if (selectedRoom && selectedDate) {
-      loadAvailableSlots();
-    }
-  }, [selectedRoom, selectedDate, selectedTimeSlot]);
-
-  const loadAvailableSlots = async () => {
+  const loadAvailableSlots = useCallback(async () => {
     try {
       setLoading(true);
       let slotsResponse;
@@ -108,7 +101,14 @@ function UserPortal() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedRoom, selectedDate, selectedTimeSlot]);
+
+  // Load available slots when room, date, or time changes
+  useEffect(() => {
+    if (selectedRoom && selectedDate) {
+      loadAvailableSlots();
+    }
+  }, [selectedRoom, selectedDate, selectedTimeSlot, loadAvailableSlots]);
 
   const handleBookingSubmit = async (slot) => {
     if (!bookingForm.name || !bookingForm.email || !bookingForm.phone) {
@@ -157,9 +157,6 @@ function UserPortal() {
     }
   };
 
-  const filteredRooms = selectedRoom === 'all' 
-    ? rooms 
-    : rooms.filter(room => room.group === selectedRoom);
 
   return (
     <div className="user-portal">
