@@ -3,6 +3,7 @@ const router = express.Router();
 const Booking = require('../models/Booking');
 const Slot = require('../models/Slot');
 const authMiddleware = require('../middleware/auth');
+const { logAdminAction } = require('../utils/adminActionLogger');
 
 // Get all bookings (admin only) with pagination
 router.get('/', authMiddleware, async (req, res) => {
@@ -123,6 +124,8 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
+    const bookingBefore = booking.toObject();
+
     // Update booking status
     booking.status = 'approved';
     booking.updatedAt = Date.now();
@@ -130,6 +133,7 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
 
     // Update slot status and details
     const slot = await Slot.findById(booking.slotId);
+    const slotBefore = slot ? slot.toObject() : null;
     if (slot) {
       slot.status = 'booked';
       slot.bookedBy = booking.userName;
@@ -146,6 +150,42 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
     const io = req.app.get('io');
     io.emit('booking-approved', populatedBooking);
 
+    if (req.adminId) {
+      const undoSteps = [
+        {
+          operation: 'restore',
+          collection: 'Booking',
+          documents: [bookingBefore]
+        }
+      ];
+
+      if (slotBefore) {
+        undoSteps.push({
+          operation: 'restore',
+          collection: 'Slot',
+          documents: [slotBefore]
+        });
+      }
+
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Approved Booking',
+        actionType: 'status-change',
+        targetCollection: 'Booking',
+        targetIds: [booking._id],
+        details: `تمت الموافقة على حجز ${booking.userName} بتاريخ ${booking.date.toISOString().split('T')[0]}`,
+        metadata: {
+          before: bookingBefore,
+          after: populatedBooking.toObject ? populatedBooking.toObject() : populatedBooking,
+          slotBefore,
+          slotAfter: slot ? slot.toObject() : null
+        },
+        undoPayload: {
+          steps: undoSteps
+        }
+      });
+    }
+
     res.json(populatedBooking);
   } catch (error) {
     console.error('Approve booking error:', error);
@@ -161,6 +201,8 @@ router.put('/:id/reject', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
+    const bookingBefore = booking.toObject();
+
     booking.status = 'rejected';
     booking.updatedAt = Date.now();
     await booking.save();
@@ -173,6 +215,30 @@ router.put('/:id/reject', authMiddleware, async (req, res) => {
     const io = req.app.get('io');
     io.emit('booking-rejected', populatedBooking);
 
+    if (req.adminId) {
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Rejected Booking',
+        actionType: 'status-change',
+        targetCollection: 'Booking',
+        targetIds: [booking._id],
+        details: `تم رفض حجز ${booking.userName} بتاريخ ${booking.date.toISOString().split('T')[0]}`,
+        metadata: {
+          before: bookingBefore,
+          after: populatedBooking.toObject ? populatedBooking.toObject() : populatedBooking
+        },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'restore',
+              collection: 'Booking',
+              documents: [bookingBefore]
+            }
+          ]
+        }
+      });
+    }
+
     res.json(populatedBooking);
   } catch (error) {
     console.error('Reject booking error:', error);
@@ -183,12 +249,36 @@ router.put('/:id/reject', authMiddleware, async (req, res) => {
 // Delete booking (admin only)
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) {
+    const bookingDoc = await Booking.findById(req.params.id);
+    if (!bookingDoc) {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
+    const bookingPlain = bookingDoc.toObject();
+
     await Booking.findByIdAndDelete(req.params.id);
+
+    if (req.adminId) {
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Removed Booking',
+        actionType: 'delete',
+        targetCollection: 'Booking',
+        targetIds: [bookingPlain._id],
+        details: `تم حذف حجز ${bookingPlain.userName} بتاريخ ${bookingPlain.date.toISOString().split('T')[0]}`,
+        metadata: { booking: bookingPlain },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'restore',
+              collection: 'Booking',
+              documents: [bookingPlain]
+            }
+          ]
+        }
+      });
+    }
+
     res.json({ success: true, message: 'Booking deleted successfully' });
   } catch (error) {
     console.error('Delete booking error:', error);

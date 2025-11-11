@@ -12,9 +12,11 @@ import {
   X,
   RefreshCw,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  History,
+  RotateCcw
 } from 'lucide-react';
-import { roomAPI, roomGroupAPI, slotAPI, bookingAPI, exportAPI } from '../services/api';
+import { roomAPI, roomGroupAPI, slotAPI, bookingAPI, exportAPI, adminActionAPI } from '../services/api';
 import socketService from '../services/socket';
 import './AdminDashboard.css';
 
@@ -28,6 +30,8 @@ const formatTime12Hour = (time24) => {
   return `${hour12}:${minutes} ${ampm}`;
 };
 
+const ACTIONS_PAGE_SIZE = 15;
+
 function AdminDashboard({ setIsAuthenticated }) {
   const [activeTab, setActiveTab] = useState('rooms');
   const [rooms, setRooms] = useState([]);
@@ -39,6 +43,13 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [pendingBookings, setPendingBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [adminActions, setAdminActions] = useState([]);
+  const [actionsPagination, setActionsPagination] = useState({ total: 0, page: 1, limit: ACTIONS_PAGE_SIZE, totalPages: 0 });
+  const [actionsCurrentPage, setActionsCurrentPage] = useState(1);
+  const [actionsLoading, setActionsLoading] = useState(false);
+  const [actionsStatusFilter, setActionsStatusFilter] = useState('all');
+  const [undoingActionId, setUndoingActionId] = useState(null);
+  const totalActionsCount = actionsPagination?.total ?? adminActions.length;
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSlotModal, setShowSlotModal] = useState(false);
@@ -105,6 +116,18 @@ function AdminDashboard({ setIsAuthenticated }) {
     return `\u202A${start}\u202C → \u202A${end}\u202C`;
   };
 
+  const formatActionTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    try {
+      return new Date(timestamp).toLocaleString('ar-EG', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
+    } catch (error) {
+      return '';
+    }
+  };
+
 
   // Predefined time ranges for filtering
   const timeRangeOptions = [
@@ -115,6 +138,12 @@ function AdminDashboard({ setIsAuthenticated }) {
     { value: '18:00-20:00', label: formatTimeRange('18:00', '20:00'), startTime: '18:00', endTime: '20:00' },
     { value: '20:00-22:00', label: formatTimeRange('20:00', '22:00'), startTime: '20:00', endTime: '22:00' }
   ];
+
+  const actionStatusOptions = useMemo(() => [
+    { value: 'all', label: 'كل الحالات' },
+    { value: 'completed', label: 'مكتمل' },
+    { value: 'undone', label: 'تم التراجع' }
+  ], []);
 
   // Pagination for slots
   const [slotsCurrentPage, setSlotsCurrentPage] = useState(1);
@@ -262,6 +291,46 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   }, [bookingsCurrentPage, bookingsPerPage]);
 
+  const loadAdminActions = useCallback(async (page) => {
+    const requestedPage = page || 1;
+    const safePage = requestedPage < 1 ? 1 : requestedPage;
+    setActionsLoading(true);
+    try {
+      const query = {
+        page: safePage,
+        limit: ACTIONS_PAGE_SIZE
+      };
+
+      if (actionsStatusFilter !== 'all') {
+        query.status = actionsStatusFilter;
+      }
+
+      const response = await adminActionAPI.getAll(query);
+      const actionsData = response.data.actions || [];
+      const pagination = response.data.pagination || {
+        total: actionsData.length,
+        page: safePage,
+        limit: ACTIONS_PAGE_SIZE,
+        totalPages: Math.max(1, Math.ceil(actionsData.length / ACTIONS_PAGE_SIZE))
+      };
+
+      if (pagination.totalPages > 0 && safePage > pagination.totalPages) {
+        setActionsPagination(pagination);
+        setActionsCurrentPage(pagination.totalPages);
+        return;
+      }
+
+      setAdminActions(actionsData);
+      setActionsPagination(pagination);
+      setActionsCurrentPage(pagination.page || safePage);
+    } catch (error) {
+      console.error('Load admin actions error:', error);
+      toast.error('فشل تحميل سجل الإجراءات');
+    } finally {
+      setActionsLoading(false);
+    }
+  }, [actionsStatusFilter]);
+
 
   useEffect(() => {
     // Check if token exists and is valid
@@ -328,6 +397,115 @@ function AdminDashboard({ setIsAuthenticated }) {
       socketService.removeListener('booking-approved');
     };
   }, [loadRooms, loadRoomGroups, loadBookings, loadSlots, activeTab, setIsAuthenticated]);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      loadAdminActions(actionsCurrentPage);
+    }
+  }, [activeTab, actionsCurrentPage, actionsStatusFilter, loadAdminActions]);
+
+  const refreshDataAfterAction = useCallback((action) => {
+    if (!action) return;
+
+    switch (action.targetCollection) {
+      case 'Room':
+        loadRooms();
+        loadSlots(slotsCurrentPage, slotFilters);
+        break;
+      case 'RoomGroup':
+        loadRoomGroups();
+        break;
+      case 'Slot':
+        loadSlots(slotsCurrentPage, slotFilters);
+        loadBookings(bookingsCurrentPage);
+        break;
+      case 'Booking':
+        loadBookings(bookingsCurrentPage);
+        loadSlots(slotsCurrentPage, slotFilters);
+        break;
+      default:
+        break;
+    }
+  }, [loadRooms, loadRoomGroups, loadSlots, loadBookings, slotsCurrentPage, slotFilters, bookingsCurrentPage]);
+
+  const handleActionsStatusChange = (value) => {
+    setActionsStatusFilter(value);
+    setActionsCurrentPage(1);
+  };
+
+  const handleActionsPageChange = (direction) => {
+    if (actionsLoading) return;
+
+    if (direction === 'prev' && actionsCurrentPage > 1) {
+      setActionsCurrentPage(prev => prev - 1);
+    } else if (direction === 'next' && actionsCurrentPage < (actionsPagination.totalPages || 1)) {
+      setActionsCurrentPage(prev => prev + 1);
+    }
+  };
+
+  const handleUndoAction = useCallback(async (action) => {
+    if (!action?._id) return;
+
+    setUndoingActionId(action._id);
+    try {
+      await adminActionAPI.undo(action._id);
+      toast.success('تم التراجع عن الإجراء بنجاح');
+      refreshDataAfterAction(action);
+      await loadAdminActions(actionsCurrentPage);
+    } catch (error) {
+      console.error('Undo admin action error:', error);
+      const message = error.response?.data?.error || 'فشل التراجع عن الإجراء';
+      toast.error(message);
+    } finally {
+      setUndoingActionId(null);
+    }
+  }, [actionsCurrentPage, loadAdminActions, refreshDataAfterAction]);
+
+  const getActionStatusLabel = (status) => {
+    switch (status) {
+      case 'undone':
+        return 'تم التراجع';
+      case 'completed':
+      default:
+        return 'مكتمل';
+    }
+  };
+
+  const getActionTypeLabel = (type) => {
+    switch (type) {
+      case 'create':
+        return 'إضافة';
+      case 'update':
+        return 'تعديل';
+      case 'delete':
+        return 'حذف';
+      case 'bulk-create':
+        return 'إضافة جماعية';
+      case 'bulk-update':
+        return 'تعديل جماعي';
+      case 'bulk-delete':
+        return 'حذف جماعي';
+      case 'status-change':
+        return 'تغيير حالة';
+      default:
+        return 'إجراء';
+    }
+  };
+
+  const getTargetCollectionLabel = (collection) => {
+    switch (collection) {
+      case 'Room':
+        return 'الأماكن';
+      case 'RoomGroup':
+        return 'المجموعات';
+      case 'Slot':
+        return 'المواعيد';
+      case 'Booking':
+        return 'الحجوزات';
+      default:
+        return collection;
+    }
+  };
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
@@ -1481,6 +1659,15 @@ function AdminDashboard({ setIsAuthenticated }) {
             )}
           </button>
           <button
+            className={`tab ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('history');
+              setActionsCurrentPage(1);
+            }}
+          >
+            <History size={20} /> سجل الإجراءات
+          </button>
+          <button
             className="tab export-tab"
             onClick={handleExportSlotsJSON}
           >
@@ -2270,6 +2457,128 @@ function AdminDashboard({ setIsAuthenticated }) {
                       loadBookings(newPage);
                     }}
                     disabled={bookingsCurrentPage === bookingsPagination.totalPages}
+                  >
+                    التالي
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === 'history' && (
+            <div className="history-section">
+              <div className="history-header">
+                <div className="history-header-info">
+                  <h2><History size={22} /> سجل الإجراءات</h2>
+                  <p className="history-total">عدد الإجراءات: {totalActionsCount}</p>
+                </div>
+                <div className="history-controls">
+                  <div className="status-filter">
+                    <label htmlFor="action-status-filter">حالة الإجراء</label>
+                    <select
+                      id="action-status-filter"
+                      value={actionsStatusFilter}
+                      onChange={(e) => handleActionsStatusChange(e.target.value)}
+                    >
+                      {actionStatusOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    className={`btn-refresh ${actionsLoading ? 'loading' : ''}`}
+                    onClick={() => loadAdminActions(actionsCurrentPage)}
+                    disabled={actionsLoading}
+                  >
+                    <RefreshCw size={18} />
+                    {actionsLoading ? 'جاري التحديث...' : 'تحديث'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="history-content">
+                {actionsLoading ? (
+                  <div className="history-loading">
+                    <div className="spinner" />
+                  </div>
+                ) : adminActions.length === 0 ? (
+                  <div className="history-empty">
+                    <History size={36} />
+                    <p>لا توجد إجراءات مسجلة بعد.</p>
+                    <small>أي عملية تقوم بها على النظام ستظهر هنا تلقائياً.</small>
+                  </div>
+                ) : (
+                  <div className="history-list">
+                    {adminActions.map((action) => (
+                      <div key={action._id} className={`history-entry ${action.status}`}>
+                        <div className="history-entry-header">
+                          <div>
+                            <h3>{action.actionName || getActionTypeLabel(action.actionType)}</h3>
+                            <div className="history-meta">
+                              <span className="meta-item">🗂️ {getTargetCollectionLabel(action.targetCollection)}</span>
+                              <span className="meta-item">🕒 {formatActionTimestamp(action.createdAt)}</span>
+                              {action.targetIds?.length ? (
+                                <span className="meta-item">#️⃣ {action.targetIds.length} عنصر</span>
+                              ) : null}
+                              {action.status === 'undone' && action.undoneAt && (
+                                <span className="meta-item undone-at">↩ تم التراجع: {formatActionTimestamp(action.undoneAt)}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="history-status">
+                            <span className={`status-badge ${action.status}`}>
+                              {getActionStatusLabel(action.status)}
+                            </span>
+                            <span className="history-type-badge">{getActionTypeLabel(action.actionType)}</span>
+                          </div>
+                        </div>
+
+                        {action.details && (
+                          <p className="history-details">{action.details}</p>
+                        )}
+
+                        <div className="history-entry-footer">
+                          <button
+                            className="btn-undo"
+                            onClick={() => handleUndoAction(action)}
+                            disabled={action.status === 'undone' || undoingActionId === action._id}
+                          >
+                            {undoingActionId === action._id ? (
+                              'جاري التراجع...'
+                            ) : (
+                              <>
+                                <RotateCcw size={16} />
+                                التراجع عن الإجراء
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {actionsPagination.totalPages > 1 && (
+                <div className="pagination history-pagination">
+                  <button
+                    className="pagination-btn"
+                    onClick={() => handleActionsPageChange('prev')}
+                    disabled={actionsCurrentPage === 1 || actionsLoading}
+                  >
+                    السابق
+                  </button>
+                  <span className="pagination-info">
+                    صفحة {actionsCurrentPage} من {actionsPagination.totalPages || 1}
+                    <small style={{ display: 'block', fontSize: '0.8em', color: '#666' }}>
+                      ({totalActionsCount} إجراء)
+                    </small>
+                  </span>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => handleActionsPageChange('next')}
+                    disabled={actionsLoading || actionsCurrentPage === (actionsPagination.totalPages || 1)}
                   >
                     التالي
                   </button>

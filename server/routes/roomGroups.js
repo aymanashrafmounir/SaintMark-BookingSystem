@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const RoomGroup = require('../models/RoomGroup');
 const authMiddleware = require('../middleware/auth');
+const { logAdminAction } = require('../utils/adminActionLogger');
 
 // Get all room groups (public - for users)
 router.get('/', async (req, res) => {
@@ -46,6 +47,29 @@ router.post('/', authMiddleware, async (req, res) => {
     });
 
     await group.save();
+
+    if (req.adminId) {
+      const groupData = group.toObject();
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Added Room Group',
+        actionType: 'create',
+        targetCollection: 'RoomGroup',
+        targetIds: [group._id],
+        details: `تمت إضافة المجموعة "${group.name}"`,
+        metadata: { group: groupData },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'delete',
+              collection: 'RoomGroup',
+              ids: [group._id.toString()]
+            }
+          ]
+        }
+      });
+    }
+
     const populatedGroup = await RoomGroup.findById(group._id).populate('rooms', 'name isEnabled');
     res.status(201).json(populatedGroup);
   } catch (error) {
@@ -67,6 +91,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Room group not found' });
     }
 
+    const previousState = group.toObject();
+
     if (name) group.name = name;
     if (rooms !== undefined) group.rooms = rooms;
     if (isEnabled !== undefined) group.isEnabled = isEnabled;
@@ -74,6 +100,45 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     await group.save();
     const updatedGroup = await RoomGroup.findById(group._id).populate('rooms', 'name isEnabled');
+
+    if (req.adminId) {
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Updated Room Group',
+        actionType: 'update',
+        targetCollection: 'RoomGroup',
+        targetIds: [group._id],
+        details: `تم تحديث المجموعة "${group.name}"`,
+        metadata: {
+          before: {
+            name: previousState.name,
+            rooms: previousState.rooms,
+            isEnabled: previousState.isEnabled
+          },
+          after: {
+            name: group.name,
+            rooms: group.rooms,
+            isEnabled: group.isEnabled
+          }
+        },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'update',
+              collection: 'RoomGroup',
+              id: group._id.toString(),
+              set: {
+                name: previousState.name,
+                rooms: previousState.rooms,
+                isEnabled: previousState.isEnabled,
+                updatedAt: previousState.updatedAt
+              }
+            }
+          ]
+        }
+      });
+    }
+
     res.json(updatedGroup);
   } catch (error) {
     console.error('Update room group error:', error);
@@ -87,12 +152,34 @@ router.put('/:id', authMiddleware, async (req, res) => {
 // Delete room group (admin only)
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const group = await RoomGroup.findById(req.params.id);
+    const group = await RoomGroup.findById(req.params.id).lean();
     if (!group) {
       return res.status(404).json({ error: 'Room group not found' });
     }
 
     await RoomGroup.findByIdAndDelete(req.params.id);
+
+    if (req.adminId) {
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Removed Room Group',
+        actionType: 'delete',
+        targetCollection: 'RoomGroup',
+        targetIds: [group._id],
+        details: `تم حذف المجموعة "${group.name}"`,
+        metadata: { group },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'restore',
+              collection: 'RoomGroup',
+              documents: [group]
+            }
+          ]
+        }
+      });
+    }
+
     res.json({ success: true, message: 'Room group deleted successfully' });
   } catch (error) {
     console.error('Delete room group error:', error);

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Slot = require('../models/Slot');
 const authMiddleware = require('../middleware/auth');
+const { logAdminAction } = require('../utils/adminActionLogger');
 
 // Get slots by room and date (public - for users)
 router.get('/room/:roomId', async (req, res) => {
@@ -233,6 +234,33 @@ router.post('/', authMiddleware, async (req, res) => {
 
     await slot.save();
     const populatedSlot = await Slot.findById(slot._id).populate('roomId', 'name isEnabled');
+
+    if (req.adminId) {
+      const slotData = populatedSlot.toObject();
+      const slotDate = slotData.date instanceof Date
+        ? slotData.date.toISOString().split('T')[0]
+        : new Date(slotData.date).toISOString().split('T')[0];
+
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Added Slot',
+        actionType: 'create',
+        targetCollection: 'Slot',
+        targetIds: [slot._id],
+        details: `تمت إضافة موعد ${slotData.startTime}-${slotData.endTime} بتاريخ ${slotDate} للغرفة ${slotData.roomId?.name || ''}`,
+        metadata: { slot: slotData },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'delete',
+              collection: 'Slot',
+              ids: [slot._id.toString()]
+            }
+          ]
+        }
+      });
+    }
+
     res.status(201).json(populatedSlot);
   } catch (error) {
     console.error('Create slot error:', error);
@@ -290,6 +318,32 @@ router.post('/bulk', authMiddleware, async (req, res) => {
       _id: { $in: createdSlots.map(s => s._id) } 
     }).populate('roomId', 'name isEnabled');
 
+    if (req.adminId) {
+      const slotDocs = populatedSlots.map((slot) => slot.toObject());
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Bulk Added Slots',
+        actionType: 'bulk-create',
+        targetCollection: 'Slot',
+        targetIds: slotDocs.map((slot) => slot._id),
+        details: `تم إنشاء ${slotDocs.length} موعد/مواعيد جديدة`,
+        metadata: {
+          roomIds,
+          requestSlots: slots,
+          createdSlots: slotDocs
+        },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'delete',
+              collection: 'Slot',
+              ids: slotDocs.map((slot) => slot._id.toString())
+            }
+          ]
+        }
+      });
+    }
+
     res.status(201).json({
       success: true,
       count: populatedSlots.length,
@@ -331,10 +385,37 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
         updateData.bookedBy = updates.bookedBy;
       }
 
+      const slotsBefore = await Slot.find({ _id: { $in: requestedSlotIds } }).lean();
+
       const result = await Slot.updateMany(
         { _id: { $in: requestedSlotIds } },
         { $set: updateData }
       );
+
+      if (req.adminId && result.modifiedCount > 0 && slotsBefore.length) {
+        await logAdminAction({
+          adminId: req.adminId,
+          actionName: 'Bulk Updated Slots',
+          actionType: 'bulk-update',
+          targetCollection: 'Slot',
+          targetIds: slotsBefore.map((slot) => slot._id),
+          details: `تم تحديث ${result.modifiedCount} موعد بالاعتماد على التحديد اليدوي`,
+          metadata: {
+            updates: updateData,
+            slotIds: requestedSlotIds,
+            before: slotsBefore
+          },
+          undoPayload: {
+            steps: [
+              {
+                operation: 'restore',
+                collection: 'Slot',
+                documents: slotsBefore
+              }
+            ]
+          }
+        });
+      }
 
       return res.json({
         success: true,
@@ -440,12 +521,38 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       bookedBy: isMakingAvailable ? null : (updates.providerName || null)
     };
 
-    const slotsToUpdateIds = slotsToUpdate.map(slot => slot._id);
+    const previousSlots = slotsToUpdate.map(slot => slot.toObject());
+    const slotsToUpdateIds = previousSlots.map(slot => slot._id);
     
     const result = await Slot.updateMany(
       { _id: { $in: slotsToUpdateIds } },
       { $set: updateData }
     );
+
+    if (req.adminId && result.modifiedCount > 0 && previousSlots.length) {
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Bulk Updated Slots',
+        actionType: 'bulk-update',
+        targetCollection: 'Slot',
+        targetIds: previousSlots.map(slot => slot._id),
+        details: `تم تحديث ${result.modifiedCount} موعد باستخدام المرشحات`,
+        metadata: {
+          filters,
+          updates: updateData,
+          before: previousSlots
+        },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'restore',
+              collection: 'Slot',
+              documents: previousSlots
+            }
+          ]
+        }
+      });
+    }
 
     res.json({
       success: true,
@@ -468,6 +575,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Slot not found' });
     }
 
+    const previousState = slot.toObject();
+
     if (startTime) slot.startTime = startTime;
     if (endTime) slot.endTime = endTime;
     
@@ -485,6 +594,32 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     await slot.save();
     const updatedSlot = await Slot.findById(slot._id).populate('roomId', 'name isEnabled');
+
+    if (req.adminId) {
+      const updatedSlotData = updatedSlot.toObject();
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Updated Slot',
+        actionType: 'update',
+        targetCollection: 'Slot',
+        targetIds: [slot._id],
+        details: `تم تحديث موعد ${updatedSlotData.startTime}-${updatedSlotData.endTime} للغرفة ${updatedSlotData.roomId?.name || ''}`,
+        metadata: {
+          before: previousState,
+          after: updatedSlotData
+        },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'restore',
+              collection: 'Slot',
+              documents: [previousState]
+            }
+          ]
+        }
+      });
+    }
+
     res.json(updatedSlot);
   } catch (error) {
     console.error('Update slot error:', error);
@@ -495,12 +630,40 @@ router.put('/:id', authMiddleware, async (req, res) => {
 // Delete slot (admin only)
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const slot = await Slot.findById(req.params.id);
-    if (!slot) {
+    const slotDoc = await Slot.findById(req.params.id);
+    if (!slotDoc) {
       return res.status(404).json({ error: 'Slot not found' });
     }
 
+    const slotPlain = slotDoc.toObject();
+    await slotDoc.populate('roomId', 'name isEnabled');
+
     await Slot.findByIdAndDelete(req.params.id);
+
+    if (req.adminId) {
+      const slotDate = slotPlain.date instanceof Date
+        ? slotPlain.date.toISOString().split('T')[0]
+        : new Date(slotPlain.date).toISOString().split('T')[0];
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Removed Slot',
+        actionType: 'delete',
+        targetCollection: 'Slot',
+        targetIds: [slotPlain._id],
+        details: `تم حذف موعد ${slotPlain.startTime}-${slotPlain.endTime} بتاريخ ${slotDate} للغرفة ${slotDoc.roomId?.name || ''}`,
+        metadata: { slot: slotPlain },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'restore',
+              collection: 'Slot',
+              documents: [slotPlain]
+            }
+          ]
+        }
+      });
+    }
+
     res.json({ success: true, message: 'Slot deleted successfully' });
   } catch (error) {
     console.error('Delete slot error:', error);
@@ -587,9 +750,34 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
       });
     }
 
+    const slotsToDeletePlain = slotsToDelete.map(slot => slot.toObject());
     // Delete all matching slots
-    const slotsToDeleteIds = slotsToDelete.map(slot => slot._id);
+    const slotsToDeleteIds = slotsToDeletePlain.map(slot => slot._id);
     const result = await Slot.deleteMany({ _id: { $in: slotsToDeleteIds } });
+
+    if (req.adminId && result.deletedCount > 0 && slotsToDeletePlain.length) {
+      await logAdminAction({
+        adminId: req.adminId,
+        actionName: 'Bulk Removed Slots',
+        actionType: 'bulk-delete',
+        targetCollection: 'Slot',
+        targetIds: slotsToDeletePlain.map(slot => slot._id),
+        details: `تم حذف ${result.deletedCount} موعد باستخدام المرشحات`,
+        metadata: {
+          filters,
+          removedSlots: slotsToDeletePlain
+        },
+        undoPayload: {
+          steps: [
+            {
+              operation: 'restore',
+              collection: 'Slot',
+              documents: slotsToDeletePlain
+            }
+          ]
+        }
+      });
+    }
 
     res.json({
       success: true,

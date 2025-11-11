@@ -96,6 +96,7 @@ app.use('/api/room-groups', require('./routes/roomGroups'));
 app.use('/api/slots', require('./routes/slots'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/export', require('./routes/export'));
+app.use('/api/admin-actions', require('./routes/adminActions'));
 
 
 // Note: Frontend is deployed separately on Vercel

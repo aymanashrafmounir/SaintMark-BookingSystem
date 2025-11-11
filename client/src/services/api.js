@@ -128,5 +128,11 @@ export const exportAPI = {
   }
 };
 
+// Admin Actions API
+export const adminActionAPI = {
+  getAll: (params = {}) => api.get('/admin-actions', { params }),
+  undo: (id) => api.post(`/admin-actions/${id}/undo`)
+};
+
 export default api;
 
