@@ -45,10 +45,24 @@ router.get('/slots/json', authMiddleware, async (req, res) => {
   }
 });
 
-// Test endpoint to verify route is working
+// Test endpoint to verify route is working (no auth required for testing)
 router.get('/test', (req, res) => {
   res.json({ 
     message: 'Export route is working',
+    timestamp: new Date().toISOString(),
+    routes: {
+      test: '/api/export/test',
+      pdf: '/api/export/bookings/pdf (requires auth)',
+      json: '/api/export/slots/json (requires auth)'
+    }
+  });
+});
+
+// Health check for PDF route (no auth)
+router.get('/bookings/pdf/status', (req, res) => {
+  res.json({ 
+    status: 'PDF route is available',
+    message: 'Use /api/export/bookings/pdf?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD with authentication',
     timestamp: new Date().toISOString()
   });
 });
