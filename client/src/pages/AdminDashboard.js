@@ -38,6 +38,7 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [roomGroups, setRoomGroups] = useState([]);
   const [slots, setSlots] = useState([]);
   const [slotsPagination, setSlotsPagination] = useState({ total: 0, page: 1, limit: 50, totalPages: 0 });
+  const [slotStatusCounts, setSlotStatusCounts] = useState({});
   const [bookings, setBookings] = useState([]);
   const [bookingsPagination, setBookingsPagination] = useState({ total: 0, page: 1, limit: 50, totalPages: 0 });
   const [pendingBookings, setPendingBookings] = useState([]);
@@ -144,6 +145,27 @@ function AdminDashboard({ setIsAuthenticated }) {
     { value: 'completed', label: 'مكتمل' },
     { value: 'undone', label: 'تم التراجع' }
   ], []);
+
+  const slotStatusLabels = useMemo(() => ({
+    available: 'متاحة',
+    booked: 'محجوزة',
+    locked: 'مغلقة',
+    blocked: 'مغلقة',
+    pending: 'قيد التنفيذ'
+  }), []);
+
+  const filteredStatusSummaryParts = useMemo(() => {
+    if (!slotStatusCounts || Object.keys(slotStatusCounts).length === 0) {
+      return [];
+    }
+    return Object.entries(slotStatusCounts)
+      .map(([status, count]) => ({
+        status,
+        count,
+        label: slotStatusLabels[status] || status
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ar'));
+  }, [slotStatusCounts, slotStatusLabels]);
 
   // Pagination for slots
   const [slotsCurrentPage, setSlotsCurrentPage] = useState(1);
@@ -258,9 +280,11 @@ function AdminDashboard({ setIsAuthenticated }) {
       const response = await slotAPI.getAll(params);
       setSlots(response.data.slots);
       setSlotsPagination(response.data.pagination);
+      setSlotStatusCounts(response.data.statusCounts || {});
     } catch (error) {
       console.error('Load slots error:', error);
       toast.error('فشل تحميل المواعيد');
+      setSlotStatusCounts({});
     } finally {
       setSlotsLoading(false);
     }
@@ -2113,9 +2137,16 @@ function AdminDashboard({ setIsAuthenticated }) {
 
               {/* Bulk Actions for Filtered Results */}
               <div className="filtered-actions-bar">
-                <div className="filtered-info">
-                  <span>إجراءات جماعية على الفلترة الحالية ({slotsPagination.total} موعد):</span>
-                </div>
+              <div className="filtered-info">
+                <span>إجراءات جماعية على الفلترة الحالية ({slotsPagination.total || 0} موعد)</span>
+                {filteredStatusSummaryParts.length > 0 && (
+                  <div className="filtered-status-counts">
+                    {filteredStatusSummaryParts.map(({ status, label, count }) => (
+                      <span key={status}>{label}: {count}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
                 <div className="filtered-action-buttons">
                   <button className="btn-filtered-assign" onClick={handleBulkAssignFiltered}>
                     ✏️ تعيين للفلترة الحالية

@@ -37,7 +37,11 @@ const mongoOptions = {
   bufferCommands: false, // Disable mongoose buffering
 };
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roombooking', mongoOptions)
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/roombooking';
+const mongoDbName = process.env.MONGODB_DB_NAME;
+const connectionOptions = mongoDbName ? { ...mongoOptions, dbName: mongoDbName } : mongoOptions;
+
+mongoose.connect(mongoUri, connectionOptions)
   .then(() => {
     console.log('✅ MongoDB Connected');
     console.log('📊 Database:', mongoose.connection.db.databaseName);
@@ -46,7 +50,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roombooki
     console.error('❌ MongoDB Connection Error:', err);
     console.log('🔄 Retrying connection in 5 seconds...');
     setTimeout(() => {
-      mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/roombooking', mongoOptions)
+      mongoose.connect(mongoUri, connectionOptions)
         .then(() => console.log('✅ MongoDB Reconnected'))
         .catch(err => console.error('❌ MongoDB Reconnection Failed:', err));
     }, 5000);

@@ -4,6 +4,149 @@ const Slot = require('../models/Slot');
 const authMiddleware = require('../middleware/auth');
 const { logAdminAction } = require('../utils/adminActionLogger');
 
+const statusLabels = {
+  available: 'متاح',
+  booked: 'محجوز'
+};
+
+const typeLabels = {
+  single: 'مرة واحدة',
+  weekly: 'أسبوعي'
+};
+
+const toArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const formatServiceProviderText = (serviceName, providerName) => {
+  if (serviceName || providerName) {
+    return `الخدمة: ${serviceName || 'غير محددة'}، الخادم: ${providerName || 'غير محدد'}`;
+  }
+  return 'متاح للحجز (بدون خدمة أو خادم)';
+};
+
+const serviceProviderDetailSuffix = (serviceName, providerName) => {
+  const summary = formatServiceProviderText(serviceName, providerName);
+  return summary ? ` | ${summary}` : '';
+};
+
+const formatSlotAssignmentsSummary = (slots = []) => {
+  const serviceNames = new Set();
+  const providerNames = new Set();
+  let availableCount = 0;
+
+  slots.forEach((slot) => {
+    if (slot.serviceName) {
+      serviceNames.add(slot.serviceName);
+    }
+    if (slot.providerName) {
+      providerNames.add(slot.providerName);
+    }
+    if (!slot.serviceName && !slot.providerName) {
+      availableCount += 1;
+    }
+  });
+
+  const parts = [];
+  if (serviceNames.size) {
+    parts.push(`الخدمات: ${Array.from(serviceNames).join('، ')}`);
+  }
+  if (providerNames.size) {
+    parts.push(`الخدام: ${Array.from(providerNames).join('، ')}`);
+  }
+  if (availableCount) {
+    parts.push(`مواعيد متاحة للحجز: ${availableCount}`);
+  }
+
+  return parts.length ? ` | ${parts.join(' | ')}` : '';
+};
+
+const formatFilterSummary = (filters = {}) => {
+  if (!filters || typeof filters !== 'object') return '';
+
+  const parts = [];
+
+  const roomIds = toArray(filters.roomIds);
+  if (roomIds.length) {
+    parts.push(`الأماكن: ${roomIds.join('، ')}`);
+  }
+  if (filters.roomId) {
+    parts.push(`المكان: ${filters.roomId}`);
+  }
+
+  if (filters.dateRangeStart && filters.dateRangeEnd) {
+    parts.push(`التاريخ من ${filters.dateRangeStart} إلى ${filters.dateRangeEnd}`);
+  } else if (filters.dateRangeStart) {
+    parts.push(`التاريخ من ${filters.dateRangeStart}`);
+  } else if (filters.dateRangeEnd) {
+    parts.push(`التاريخ حتى ${filters.dateRangeEnd}`);
+  } else if (filters.date) {
+    parts.push(`التاريخ: ${filters.date}`);
+  }
+
+  if (filters.startTime) {
+    parts.push(`وقت البداية: ${filters.startTime}`);
+  }
+  if (filters.endTime) {
+    parts.push(`وقت النهاية: ${filters.endTime}`);
+  }
+
+  const timeRanges = toArray(filters.timeRanges);
+  if (timeRanges.length) {
+    parts.push(`نطاقات الوقت: ${timeRanges.join('، ')}`);
+  }
+
+  const daysOfWeek = toArray(filters.daysOfWeek);
+  if (daysOfWeek.length) {
+    parts.push(`أيام الأسبوع: ${daysOfWeek.join('، ')}`);
+  }
+
+  if (filters.serviceName) {
+    parts.push(`الخدمة تحتوي على: ${filters.serviceName}`);
+  }
+  if (filters.providerName) {
+    parts.push(`الخادم يحتوي على: ${filters.providerName}`);
+  }
+
+  if (filters.type) {
+    parts.push(`النوع: ${typeLabels[filters.type] || filters.type}`);
+  }
+
+  return parts.length ? ` | معايير التصفية: ${parts.join('، ')}` : '';
+};
+
+const formatUpdateSummary = (updates = {}) => {
+  if (!updates || typeof updates !== 'object') return '';
+
+  const parts = [];
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'serviceName')) {
+    parts.push(`الخدمة ← ${updates.serviceName || 'فارغة'}`);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'providerName')) {
+    parts.push(`الخادم ← ${updates.providerName || 'فارغ'}`);
+  }
+  if (updates.status) {
+    parts.push(`الحالة ← ${statusLabels[updates.status] || updates.status}`);
+  }
+  if (updates.type) {
+    parts.push(`النوع ← ${typeLabels[updates.type] || updates.type}`);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'bookedBy')) {
+    parts.push(`تم الحجز بواسطة ← ${updates.bookedBy || 'غير محدد'}`);
+  }
+
+  return parts.length ? ` | التعديلات: ${parts.join('، ')}` : '';
+};
+
 // Get slots by room and date (public - for users)
 router.get('/room/:roomId', async (req, res) => {
   try {
@@ -63,6 +206,14 @@ router.get('/public', async (req, res) => {
       const endDate = new Date(dateRangeEnd);
       endDate.setHours(23, 59, 59, 999);
       filter.date = { $gte: startDate, $lte: endDate };
+    } else if (dateRangeStart) {
+      const startDate = new Date(dateRangeStart);
+      startDate.setHours(0, 0, 0, 0);
+      filter.date = { $gte: startDate };
+    } else if (dateRangeEnd) {
+      const endDate = new Date(dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      filter.date = { $lte: endDate };
     }
     
     // Time filtering
@@ -149,6 +300,14 @@ router.get('/', authMiddleware, async (req, res) => {
       const endDate = new Date(dateRangeEnd);
       endDate.setHours(23, 59, 59, 999);
       filter.date = { $gte: startDate, $lte: endDate };
+    } else if (dateRangeStart) {
+      const startDate = new Date(dateRangeStart);
+      startDate.setHours(0, 0, 0, 0);
+      filter.date = { $gte: startDate };
+    } else if (dateRangeEnd) {
+      const endDate = new Date(dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      filter.date = { $lte: endDate };
     } else if (date) {
       const searchDate = new Date(date);
       const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
@@ -188,6 +347,13 @@ router.get('/', authMiddleware, async (req, res) => {
       });
     }
     
+    // Compute status counts before pagination
+    const statusCounts = slots.reduce((acc, slot) => {
+      const statusKey = slot.status || 'unknown';
+      acc[statusKey] = (acc[statusKey] || 0) + 1;
+      return acc;
+    }, {});
+
     // Apply pagination after day filtering
     const totalCount = slots.length;
     const paginatedSlots = slots.slice(skip, skip + limitNumber);
@@ -199,7 +365,8 @@ router.get('/', authMiddleware, async (req, res) => {
         page: pageNumber,
         limit: limitNumber,
         totalPages: Math.ceil(totalCount / limitNumber)
-      }
+      },
+      statusCounts
     });
   } catch (error) {
     console.error('Get all slots error:', error);
@@ -240,6 +407,7 @@ router.post('/', authMiddleware, async (req, res) => {
       const slotDate = slotData.date instanceof Date
         ? slotData.date.toISOString().split('T')[0]
         : new Date(slotData.date).toISOString().split('T')[0];
+      const assignmentDetail = serviceProviderDetailSuffix(slotData.serviceName, slotData.providerName);
 
       await logAdminAction({
         adminId: req.adminId,
@@ -247,7 +415,7 @@ router.post('/', authMiddleware, async (req, res) => {
         actionType: 'create',
         targetCollection: 'Slot',
         targetIds: [slot._id],
-        details: `تمت إضافة موعد ${slotData.startTime}-${slotData.endTime} بتاريخ ${slotDate} للغرفة ${slotData.roomId?.name || ''}`,
+        details: `تمت إضافة موعد ${slotData.startTime}-${slotData.endTime} بتاريخ ${slotDate} للغرفة ${slotData.roomId?.name || 'بدون اسم'}${assignmentDetail}`,
         metadata: { slot: slotData },
         undoPayload: {
           steps: [
@@ -320,13 +488,14 @@ router.post('/bulk', authMiddleware, async (req, res) => {
 
     if (req.adminId) {
       const slotDocs = populatedSlots.map((slot) => slot.toObject());
+      const assignmentsSummary = formatSlotAssignmentsSummary(slotDocs);
       await logAdminAction({
         adminId: req.adminId,
         actionName: 'Bulk Added Slots',
         actionType: 'bulk-create',
         targetCollection: 'Slot',
         targetIds: slotDocs.map((slot) => slot._id),
-        details: `تم إنشاء ${slotDocs.length} موعد/مواعيد جديدة`,
+        details: `تم إنشاء ${slotDocs.length} موعد/مواعيد جديدة${assignmentsSummary}`,
         metadata: {
           roomIds,
           requestSlots: slots,
@@ -393,13 +562,14 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       );
 
       if (req.adminId && result.modifiedCount > 0 && slotsBefore.length) {
+        const updateSummaryText = formatUpdateSummary(updates);
         await logAdminAction({
           adminId: req.adminId,
           actionName: 'Bulk Updated Slots',
           actionType: 'bulk-update',
           targetCollection: 'Slot',
           targetIds: slotsBefore.map((slot) => slot._id),
-          details: `تم تحديث ${result.modifiedCount} موعد بالاعتماد على التحديد اليدوي`,
+          details: `تم تحديث ${result.modifiedCount} موعد (تحديد يدوي)${updateSummaryText}`,
           metadata: {
             updates: updateData,
             slotIds: requestedSlotIds,
@@ -472,6 +642,14 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       const endDate = new Date(filters.dateRangeEnd);
       endDate.setHours(23, 59, 59, 999);
       query.date = { $gte: startDate, $lte: endDate };
+    } else if (filters.dateRangeStart) {
+      const startDate = new Date(filters.dateRangeStart);
+      startDate.setHours(0, 0, 0, 0);
+      query.date = { $gte: startDate };
+    } else if (filters.dateRangeEnd) {
+      const endDate = new Date(filters.dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      query.date = { $lte: endDate };
     } else if (filters.date) {
       const searchDate = new Date(filters.date);
       const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
@@ -530,13 +708,15 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     );
 
     if (req.adminId && result.modifiedCount > 0 && previousSlots.length) {
+      const filterSummaryText = formatFilterSummary(filters);
+      const updateSummaryText = formatUpdateSummary(updates);
       await logAdminAction({
         adminId: req.adminId,
         actionName: 'Bulk Updated Slots',
         actionType: 'bulk-update',
         targetCollection: 'Slot',
         targetIds: previousSlots.map(slot => slot._id),
-        details: `تم تحديث ${result.modifiedCount} موعد باستخدام المرشحات`,
+        details: `تم تحديث ${result.modifiedCount} موعد باستخدام المرشحات${filterSummaryText}${updateSummaryText}`,
         metadata: {
           filters,
           updates: updateData,
@@ -597,13 +777,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     if (req.adminId) {
       const updatedSlotData = updatedSlot.toObject();
+      const assignmentDetail = serviceProviderDetailSuffix(updatedSlotData.serviceName, updatedSlotData.providerName);
       await logAdminAction({
         adminId: req.adminId,
         actionName: 'Updated Slot',
         actionType: 'update',
         targetCollection: 'Slot',
         targetIds: [slot._id],
-        details: `تم تحديث موعد ${updatedSlotData.startTime}-${updatedSlotData.endTime} للغرفة ${updatedSlotData.roomId?.name || ''}`,
+        details: `تم تحديث موعد ${updatedSlotData.startTime}-${updatedSlotData.endTime} للغرفة ${updatedSlotData.roomId?.name || 'بدون اسم'}${assignmentDetail}`,
         metadata: {
           before: previousState,
           after: updatedSlotData
@@ -709,6 +890,14 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
       const endDate = new Date(filters.dateRangeEnd);
       endDate.setHours(23, 59, 59, 999);
       query.date = { $gte: startDate, $lte: endDate };
+    } else if (filters.dateRangeStart) {
+      const startDate = new Date(filters.dateRangeStart);
+      startDate.setHours(0, 0, 0, 0);
+      query.date = { $gte: startDate };
+    } else if (filters.dateRangeEnd) {
+      const endDate = new Date(filters.dateRangeEnd);
+      endDate.setHours(23, 59, 59, 999);
+      query.date = { $lte: endDate };
     } else if (filters.date) {
       const searchDate = new Date(filters.date);
       const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
