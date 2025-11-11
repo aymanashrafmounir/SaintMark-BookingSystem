@@ -125,6 +125,21 @@ export const exportAPI = {
         Authorization: `Bearer ${token}`
       }
     });
+  },
+  downloadBookingsPDF: (startDate, endDate) => {
+    const token = localStorage.getItem('adminToken');
+    return axios({
+      url: `${API_URL}/export/bookings/pdf`,
+      method: 'GET',
+      responseType: 'blob',
+      params: {
+        startDate,
+        endDate
+      },
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
   }
 };
 

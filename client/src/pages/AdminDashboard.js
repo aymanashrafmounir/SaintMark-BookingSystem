@@ -54,6 +54,9 @@ function AdminDashboard({ setIsAuthenticated }) {
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSlotModal, setShowSlotModal] = useState(false);
+  const [showExportPDFModal, setShowExportPDFModal] = useState(false);
+  const [exportPDFForm, setExportPDFForm] = useState({ startDate: '', endDate: '' });
+  const [exportingPDF, setExportingPDF] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [slotToDelete, setSlotToDelete] = useState(null);
   const [editingRoom, setEditingRoom] = useState(null);
@@ -1052,6 +1055,47 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   };
 
+  const handleExportPDF = async (e) => {
+    e.preventDefault();
+    if (!exportPDFForm.startDate || !exportPDFForm.endDate) {
+      toast.error('يرجى إدخال تاريخ البداية والنهاية');
+      return;
+    }
+
+    const start = new Date(exportPDFForm.startDate);
+    const end = new Date(exportPDFForm.endDate);
+    
+    if (start > end) {
+      toast.error('تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية');
+      return;
+    }
+
+    setExportingPDF(true);
+    try {
+      const response = await exportAPI.downloadBookingsPDF(
+        exportPDFForm.startDate,
+        exportPDFForm.endDate
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Booking_Report_${exportPDFForm.startDate}_${exportPDFForm.endDate}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('تم إنشاء ملف PDF بنجاح');
+      setShowExportPDFModal(false);
+      setExportPDFForm({ startDate: '', endDate: '' });
+    } catch (error) {
+      console.error('Export PDF error:', error);
+      const errorMessage = error.response?.data?.error || 'فشل إنشاء ملف PDF';
+      toast.error(errorMessage);
+    } finally {
+      setExportingPDF(false);
+    }
+  };
+
   const openEditRoom = (room) => {
     setEditingRoom(room);
     setRoomForm({ name: room.name, isEnabled: room.isEnabled });
@@ -1693,9 +1737,9 @@ function AdminDashboard({ setIsAuthenticated }) {
           </button>
           <button
             className="tab export-tab"
-            onClick={handleExportSlotsJSON}
+            onClick={() => setShowExportPDFModal(true)}
           >
-            <Download size={20} /> تصدير
+            <Download size={20} /> تصدير PDF
           </button>
         </div>
 
@@ -3279,6 +3323,63 @@ function AdminDashboard({ setIsAuthenticated }) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export PDF Modal */}
+      {showExportPDFModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>📄 تصدير تقرير PDF</h2>
+              <button onClick={() => {
+                setShowExportPDFModal(false);
+                setExportPDFForm({ startDate: '', endDate: '' });
+              }}>
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleExportPDF} className="modal-form">
+              <div className="form-group">
+                <label>من تاريخ *</label>
+                <input
+                  type="date"
+                  value={exportPDFForm.startDate}
+                  onChange={(e) => setExportPDFForm({ ...exportPDFForm, startDate: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>إلى تاريخ *</label>
+                <input
+                  type="date"
+                  value={exportPDFForm.endDate}
+                  onChange={(e) => setExportPDFForm({ ...exportPDFForm, endDate: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="modal-actions">
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={() => {
+                    setShowExportPDFModal(false);
+                    setExportPDFForm({ startDate: '', endDate: '' });
+                  }}
+                  disabled={exportingPDF}
+                >
+                  إلغاء
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn-primary"
+                  disabled={exportingPDF}
+                >
+                  {exportingPDF ? 'جاري الإنشاء...' : 'إنشاء PDF'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
