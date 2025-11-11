@@ -202,17 +202,17 @@ router.get('/public', async (req, res) => {
     // Date range filtering
     if (dateRangeStart && dateRangeEnd) {
       const startDate = new Date(dateRangeStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       const endDate = new Date(dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       filter.date = { $gte: startDate, $lte: endDate };
     } else if (dateRangeStart) {
       const startDate = new Date(dateRangeStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       filter.date = { $gte: startDate };
     } else if (dateRangeEnd) {
       const endDate = new Date(dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       filter.date = { $lte: endDate };
     }
     
@@ -296,17 +296,17 @@ router.get('/', authMiddleware, async (req, res) => {
     // Date filtering - prioritize range over single date
     if (dateRangeStart && dateRangeEnd) {
       const startDate = new Date(dateRangeStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       const endDate = new Date(dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       filter.date = { $gte: startDate, $lte: endDate };
     } else if (dateRangeStart) {
       const startDate = new Date(dateRangeStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       filter.date = { $gte: startDate };
     } else if (dateRangeEnd) {
       const endDate = new Date(dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       filter.date = { $lte: endDate };
     } else if (date) {
       const searchDate = new Date(date);
@@ -638,17 +638,17 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     // Date range filter
     if (filters.dateRangeStart && filters.dateRangeEnd) {
       const startDate = new Date(filters.dateRangeStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       const endDate = new Date(filters.dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       query.date = { $gte: startDate, $lte: endDate };
     } else if (filters.dateRangeStart) {
       const startDate = new Date(filters.dateRangeStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       query.date = { $gte: startDate };
     } else if (filters.dateRangeEnd) {
       const endDate = new Date(filters.dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       query.date = { $lte: endDate };
     } else if (filters.date) {
       const searchDate = new Date(filters.date);
@@ -886,17 +886,17 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     // Date range filter
     if (filters.dateRangeStart && filters.dateRangeEnd) {
       const startDate = new Date(filters.dateRangeStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       const endDate = new Date(filters.dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       query.date = { $gte: startDate, $lte: endDate };
     } else if (filters.dateRangeStart) {
       const startDate = new Date(filters.dateRangeStart);
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
       query.date = { $gte: startDate };
     } else if (filters.dateRangeEnd) {
       const endDate = new Date(filters.dateRangeEnd);
-      endDate.setHours(23, 59, 59, 999);
+      endDate.setUTCHours(23, 59, 59, 999);
       query.date = { $lte: endDate };
     } else if (filters.date) {
       const searchDate = new Date(filters.date);
