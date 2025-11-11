@@ -2,46 +2,30 @@ const PdfPrinter = require('pdfmake');
 const fs = require('fs');
 const path = require('path');
 
-// Try to load fonts from pdfmake package or use fallback
+// Try to load fonts from various locations
 let fonts = {};
-try {
-  // Try to use fonts from pdfmake package
-  const pdfmakePath = require.resolve('pdfmake');
-  const pdfmakeDir = path.dirname(pdfmakePath);
-  const fontsPath = path.join(pdfmakeDir, '..', 'fonts');
-  
-  // Check for Roboto fonts
-  const robotoNormal = path.join(fontsPath, 'Roboto-Regular.ttf');
-  const robotoBold = path.join(fontsPath, 'Roboto-Medium.ttf');
-  const robotoItalic = path.join(fontsPath, 'Roboto-Italic.ttf');
-  const robotoBoldItalic = path.join(fontsPath, 'Roboto-MediumItalic.ttf');
-  
-  if (fs.existsSync(robotoNormal)) {
-    fonts = {
-      Roboto: {
-        normal: robotoNormal,
-        bold: robotoBold,
-        italics: robotoItalic,
-        bolditalics: robotoBoldItalic
-      }
-    };
-  } else {
-    // Try alternative path
-    const altFontsPath = path.join(pdfmakeDir, 'fonts');
-    if (fs.existsSync(path.join(altFontsPath, 'Roboto-Regular.ttf'))) {
-      fonts = {
-        Roboto: {
-          normal: path.join(altFontsPath, 'Roboto-Regular.ttf'),
-          bold: path.join(altFontsPath, 'Roboto-Medium.ttf'),
-          italics: path.join(altFontsPath, 'Roboto-Italic.ttf'),
-          bolditalics: path.join(altFontsPath, 'Roboto-MediumItalic.ttf')
-        }
-      };
+const fontsDir = path.join(__dirname, 'fonts');
+
+// Check local fonts directory first
+const robotoNormal = path.join(fontsDir, 'Roboto-Regular.ttf');
+
+if (fs.existsSync(robotoNormal)) {
+  // Use the same font file for all styles (temporary solution)
+  // This will work but bold/italic won't be visually distinct
+  fonts = {
+    Roboto: {
+      normal: robotoNormal,
+      bold: robotoNormal,      // Use same font for now
+      italics: robotoNormal,   // Use same font for now
+      bolditalics: robotoNormal // Use same font for now
     }
-  }
-} catch (error) {
-  console.warn('Could not load pdfmake fonts, using defaults:', error.message);
-  // Will use pdfmake's default fonts
+  };
+  console.log('✓ Loaded Roboto font from local fonts directory');
+} else {
+  // Fonts not found - will throw error when creating PDF
+  console.warn('⚠ Roboto fonts not found. PDF generation may fail.');
+  console.warn('  To fix this, run: node utils/downloadFonts.js');
+  console.warn('  Or manually download Roboto-Regular.ttf to server/utils/fonts/');
 }
 
 // Helper function to convert Western to Eastern Arabic numerals
@@ -215,35 +199,23 @@ const processBookings = (slots) => {
 
 // Create PDF document
 const createPDF = (recurringData, oneTimeData) => {
-  // pdfmake requires fonts - use loaded fonts or create a minimal fallback
-  let printer;
-  if (Object.keys(fonts).length > 0) {
-    printer = new PdfPrinter(fonts);
-  } else {
-    // Fallback: create a minimal font config using standard PDF fonts
-    // Note: This may not support Arabic text well, but will allow PDF generation
-    try {
-      printer = new PdfPrinter({
-        Roboto: {
-          normal: Buffer.from([]),
-          bold: Buffer.from([]),
-          italics: Buffer.from([]),
-          bolditalics: Buffer.from([])
-        }
-      });
-    } catch (error) {
-      // If that fails, try with empty object (may not work)
-      console.warn('Font configuration failed, attempting with empty fonts:', error.message);
-      printer = new PdfPrinter({});
-    }
+  // pdfmake requires fonts - check if fonts are available
+  if (Object.keys(fonts).length === 0) {
+    throw new Error(
+      'Fonts not found. Please run "node utils/downloadFonts.js" to download Roboto fonts, ' +
+      'or manually place Roboto font files in server/utils/fonts/ directory.'
+    );
   }
+  
+  // Create printer with fonts
+  const printer = new PdfPrinter(fonts);
 
   const docDefinition = {
     pageSize: 'A3',
     pageOrientation: 'landscape',
     pageMargins: [36, 36, 36, 36],
     defaultStyle: {
-      font: Object.keys(fonts).length > 0 ? 'Roboto' : undefined,
+      font: 'Roboto',
       fontSize: 9,
       alignment: 'center'
     },
