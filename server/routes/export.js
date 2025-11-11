@@ -92,7 +92,15 @@ router.get('/bookings/pdf', authMiddleware, async (req, res) => {
 
   } catch (error) {
     console.error('Export bookings PDF error:', error);
-    res.status(500).json({ error: 'Failed to generate PDF report' });
+    console.error('Error stack:', error.stack);
+    // Send detailed error in development, generic in production
+    const errorMessage = process.env.NODE_ENV === 'production' 
+      ? 'Failed to generate PDF report' 
+      : error.message || 'Failed to generate PDF report';
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+    });
   }
 });
 
