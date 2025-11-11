@@ -45,9 +45,19 @@ router.get('/slots/json', authMiddleware, async (req, res) => {
   }
 });
 
+// Test endpoint to verify route is working
+router.get('/test', (req, res) => {
+  res.json({ 
+    message: 'Export route is working',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Export bookings to PDF report (admin only)
 router.get('/bookings/pdf', authMiddleware, async (req, res) => {
   try {
+    console.log('📄 PDF Export request received:', { startDate: req.query.startDate, endDate: req.query.endDate });
+    
     const { startDate, endDate } = req.query;
 
     if (!startDate || !endDate) {
@@ -63,6 +73,7 @@ router.get('/bookings/pdf', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'startDate must be before or equal to endDate' });
     }
 
+    console.log('🔍 Fetching booked slots...');
     // Fetch booked slots in date range
     const slots = await Slot.find({
       status: 'booked',
@@ -72,35 +83,49 @@ router.get('/bookings/pdf', authMiddleware, async (req, res) => {
       .sort({ date: 1, startTime: 1 })
       .lean();
 
+    console.log(`📊 Found ${slots.length} booked slots`);
+
     if (slots.length === 0) {
       return res.status(404).json({ error: 'No booked slots found in the specified date range' });
     }
 
+    console.log('🔄 Processing bookings...');
     // Process bookings
     const { recurring, oneTime } = processBookings(slots);
+    console.log(`✅ Processed: ${recurring.length} recurring, ${oneTime.length} one-time bookings`);
 
-    // Create PDF
-    const pdfDoc = createPDF(recurring, oneTime);
+    console.log('📝 Creating PDF...');
+    // Create PDF (now async)
+    const pdfDoc = await createPDF(recurring, oneTime);
 
     // Set response headers
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=Booking_Report_${startDate}_${endDate}.pdf`);
 
+    console.log('📤 Streaming PDF to client...');
     // Stream PDF to response
     pdfDoc.pipe(res);
+    pdfDoc.on('end', () => {
+      console.log('✅ PDF sent successfully');
+    });
+    pdfDoc.on('error', (err) => {
+      console.error('❌ PDF stream error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to stream PDF' });
+      }
+    });
     pdfDoc.end();
 
   } catch (error) {
-    console.error('Export bookings PDF error:', error);
+    console.error('❌ Export bookings PDF error:', error);
     console.error('Error stack:', error.stack);
-    // Send detailed error in development, generic in production
-    const errorMessage = process.env.NODE_ENV === 'production' 
-      ? 'Failed to generate PDF report' 
-      : error.message || 'Failed to generate PDF report';
-    res.status(500).json({ 
-      error: errorMessage,
-      details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
-    });
+    // Send detailed error
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: error.message || 'Failed to generate PDF report',
+        details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+      });
+    }
   }
 });
 

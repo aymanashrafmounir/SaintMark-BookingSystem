@@ -1,31 +1,88 @@
 const PdfPrinter = require('pdfmake');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 
 // Try to load fonts from various locations
 let fonts = {};
+let fontsLoading = false;
 const fontsDir = path.join(__dirname, 'fonts');
 
-// Check local fonts directory first
-const robotoNormal = path.join(fontsDir, 'Roboto-Regular.ttf');
-
-if (fs.existsSync(robotoNormal)) {
-  // Use the same font file for all styles (temporary solution)
-  // This will work but bold/italic won't be visually distinct
-  fonts = {
-    Roboto: {
-      normal: robotoNormal,
-      bold: robotoNormal,      // Use same font for now
-      italics: robotoNormal,   // Use same font for now
-      bolditalics: robotoNormal // Use same font for now
+// Function to download font if not exists
+function downloadFontIfNeeded() {
+  return new Promise((resolve, reject) => {
+    // Create fonts directory if it doesn't exist
+    if (!fs.existsSync(fontsDir)) {
+      fs.mkdirSync(fontsDir, { recursive: true });
     }
-  };
-  console.log('✓ Loaded Roboto font from local fonts directory');
-} else {
-  // Fonts not found - will throw error when creating PDF
-  console.warn('⚠ Roboto fonts not found. PDF generation may fail.');
-  console.warn('  To fix this, run: node utils/downloadFonts.js');
-  console.warn('  Or manually download Roboto-Regular.ttf to server/utils/fonts/');
+
+    const robotoNormal = path.join(fontsDir, 'Roboto-Regular.ttf');
+    
+    // If font already exists, resolve immediately
+    if (fs.existsSync(robotoNormal)) {
+      resolve();
+      return;
+    }
+
+    // Download font from CDN
+    console.log('📥 Downloading Roboto font...');
+    const fontUrl = 'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf';
+    const file = fs.createWriteStream(robotoNormal);
+    
+    https.get(fontUrl, (response) => {
+      if (response.statusCode === 200) {
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close();
+          console.log('✓ Roboto font downloaded successfully');
+          resolve();
+        });
+      } else if (response.statusCode === 301 || response.statusCode === 302) {
+        // Handle redirect
+        file.close();
+        fs.unlinkSync(robotoNormal);
+        https.get(response.headers.location, (redirectResponse) => {
+          redirectResponse.pipe(fs.createWriteStream(robotoNormal));
+          resolve();
+        }).on('error', reject);
+      } else {
+        file.close();
+        fs.unlinkSync(robotoNormal);
+        reject(new Error(`Failed to download font: ${response.statusCode}`));
+      }
+    }).on('error', (err) => {
+      file.close();
+      if (fs.existsSync(robotoNormal)) {
+        fs.unlinkSync(robotoNormal);
+      }
+      reject(err);
+    });
+  });
+}
+
+// Load fonts
+function loadFonts() {
+  const robotoNormal = path.join(fontsDir, 'Roboto-Regular.ttf');
+
+  if (fs.existsSync(robotoNormal)) {
+    // Use the same font file for all styles (temporary solution)
+    fonts = {
+      Roboto: {
+        normal: robotoNormal,
+        bold: robotoNormal,      // Use same font for now
+        italics: robotoNormal,   // Use same font for now
+        bolditalics: robotoNormal // Use same font for now
+      }
+    };
+    console.log('✓ Loaded Roboto font from local fonts directory');
+    return true;
+  }
+  return false;
+}
+
+// Try to load fonts immediately
+if (!loadFonts()) {
+  console.warn('⚠ Roboto fonts not found. Will attempt to download on first use.');
 }
 
 // Helper function to convert Western to Eastern Arabic numerals
@@ -198,13 +255,34 @@ const processBookings = (slots) => {
 };
 
 // Create PDF document
-const createPDF = (recurringData, oneTimeData) => {
-  // pdfmake requires fonts - check if fonts are available
+const createPDF = async (recurringData, oneTimeData) => {
+  // Ensure fonts are loaded
   if (Object.keys(fonts).length === 0) {
-    throw new Error(
-      'Fonts not found. Please run "node utils/downloadFonts.js" to download Roboto fonts, ' +
-      'or manually place Roboto font files in server/utils/fonts/ directory.'
-    );
+    if (!fontsLoading) {
+      fontsLoading = true;
+      try {
+        await downloadFontIfNeeded();
+        loadFonts();
+      } catch (error) {
+        fontsLoading = false;
+        console.error('Failed to download fonts:', error);
+        throw new Error(
+          'Fonts not found and could not be downloaded automatically. ' +
+          'Please ensure server/utils/fonts/Roboto-Regular.ttf exists.'
+        );
+      }
+      fontsLoading = false;
+    } else {
+      // Wait for fonts to load (simple polling)
+      let attempts = 0;
+      while (Object.keys(fonts).length === 0 && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      if (Object.keys(fonts).length === 0) {
+        throw new Error('Fonts could not be loaded');
+      }
+    }
   }
   
   // Create printer with fonts
