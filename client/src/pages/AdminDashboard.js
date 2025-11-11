@@ -1038,23 +1038,6 @@ function AdminDashboard({ setIsAuthenticated }) {
     );
   };
 
-  const handleExportSlotsJSON = async () => {
-    try {
-      const response = await exportAPI.downloadSlotsJSON();
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `slots-export-${Date.now()}.json`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success('تم تحميل ملف JSON للفترات بنجاح');
-    } catch (error) {
-      console.error('Export slots JSON error:', error);
-      toast.error('فشل تصدير الفترات');
-    }
-  };
-
   const handleExportPDF = async (e) => {
     e.preventDefault();
     if (!exportPDFForm.startDate || !exportPDFForm.endDate) {
