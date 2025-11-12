@@ -1566,6 +1566,13 @@ function AdminDashboard({ setIsAuthenticated }) {
         // Remove status filter if it exists (we don't want to filter by status in bulk update)
         delete params.status;
         
+        console.log('Bulk assign: Sending filters:', JSON.stringify(params, null, 2));
+        console.log('Bulk assign: Sending updates:', {
+          serviceName: bulkAssignForm.serviceName,
+          providerName: bulkAssignForm.providerName
+        });
+        console.log('Bulk assign: Expected slots count from pagination:', slotsPagination.total);
+        
         const response = await slotAPI.bulkUpdate({
           filters: params,
           updates: {
@@ -1574,15 +1581,30 @@ function AdminDashboard({ setIsAuthenticated }) {
           }
         });
         
-        const updatedCount = response.data.count || slotsPagination.total;
-        toast.success(`✅ تم تعيين ${updatedCount} موعد بنجاح!`);
+        console.log('Bulk assign: Response received:', response.data);
+        
+        const updatedCount = response.data.count || 0;
+        const matchedCount = response.data.matchedCount || 0;
+        const modifiedCount = response.data.modifiedCount || 0;
+        
+        if (!response.data.success) {
+          toast.error(response.data.error || '⚠️ لم يتم العثور على مواعيد تطابق الفلترة المحددة');
+        } else if (modifiedCount === 0 && matchedCount > 0) {
+          toast.warning(`⚠️ تم العثور على ${matchedCount} موعد لكنها تحتوي بالفعل على نفس القيم (لم يتم إجراء تغييرات)`);
+        } else if (modifiedCount === 0) {
+          toast.warning('⚠️ لم يتم العثور على مواعيد تطابق الفلترة المحددة');
+        } else {
+          toast.success(`✅ تم تعيين ${modifiedCount} موعد بنجاح!`);
+        }
       }
       
       setShowBulkAssignModal(false);
       setBulkAssignForm({ serviceName: '', providerName: '' });
       loadSlots(slotsCurrentPage, slotFilters);
     } catch (error) {
-      toast.error('فشل تعيين المواعيد');
+      console.error('Bulk assign error:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'فشل تعيين المواعيد';
+      toast.error(`فشل تعيين المواعيد: ${errorMessage}`);
     }
   };
 
@@ -1646,8 +1668,19 @@ function AdminDashboard({ setIsAuthenticated }) {
             }
           });
           
-          const updatedCount = response.data.count || slotsPagination.total;
-          toast.success(`✅ تم جعل ${updatedCount} موعد متاح بنجاح!`);
+          const updatedCount = response.data.count || 0;
+          const matchedCount = response.data.matchedCount || 0;
+          const modifiedCount = response.data.modifiedCount || 0;
+          
+          if (!response.data.success) {
+            toast.error(response.data.error || '⚠️ لم يتم العثور على مواعيد تطابق الفلترة المحددة');
+          } else if (modifiedCount === 0 && matchedCount > 0) {
+            toast.warning(`⚠️ تم العثور على ${matchedCount} موعد لكنها متاحة بالفعل (لم يتم إجراء تغييرات)`);
+          } else if (modifiedCount === 0) {
+            toast.warning('⚠️ لم يتم العثور على مواعيد تطابق الفلترة المحددة');
+          } else {
+            toast.success(`✅ تم جعل ${modifiedCount} موعد متاح بنجاح!`);
+          }
           await loadSlots(slotsCurrentPage, slotFilters);
         } catch (error) {
           console.error('Bulk make available filtered error:', error);
@@ -1708,12 +1741,16 @@ function AdminDashboard({ setIsAuthenticated }) {
           delete params.status;
           
           const response = await slotAPI.bulkDelete({ filters: params });
-          const deletedCount = response.data.count || slotsPagination.total;
-          
-          toast.success(`✅ تم حذف ${deletedCount} موعد بنجاح!`);
+          const deletedCount = response.data.count || 0;
+          if (deletedCount === 0) {
+            toast.warning('⚠️ لم يتم العثور على مواعيد تطابق الفلترة المحددة');
+          } else {
+            toast.success(`✅ تم حذف ${deletedCount} موعد بنجاح!`);
+          }
           loadSlots(slotsCurrentPage, slotFilters);
         } catch (error) {
-          toast.error('فشل حذف المواعيد');
+          console.error('Bulk delete filtered error:', error);
+          toast.error(`فشل حذف المواعيد: ${error.response?.data?.error || error.message}`);
         }
       },
       'حذف',

@@ -746,38 +746,71 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Updates object is required' });
     }
     
+    console.log('Bulk update: Received filters:', JSON.stringify(filters, null, 2));
+    console.log('Bulk update: Received updates:', JSON.stringify(updates, null, 2));
+    
     // If making slots available, serviceName and providerName can be empty
     const isMakingAvailable = updates.status === 'available' && 
-                             (updates.serviceName === '' || updates.serviceName === null) &&
-                             (updates.providerName === '' || updates.providerName === null);
+                             (updates.serviceName === '' || updates.serviceName === null || updates.serviceName === undefined) &&
+                             (updates.providerName === '' || updates.providerName === null || updates.providerName === undefined);
     
-    if (!isMakingAvailable && (!updates.serviceName || !updates.providerName)) {
-      return res.status(400).json({ error: 'Service name and provider name are required for filter-based updates' });
+    console.log('Bulk update: isMakingAvailable:', isMakingAvailable);
+    console.log('Bulk update: serviceName:', updates.serviceName, 'providerName:', updates.providerName);
+    
+    // Only require serviceName and providerName if we're assigning (not making available)
+    if (!isMakingAvailable && updates.status !== 'available') {
+      if (updates.serviceName === undefined && updates.providerName === undefined) {
+        // If neither is provided, it's an error
+        return res.status(400).json({ error: 'Service name and provider name are required for filter-based updates' });
+      }
+      // If one is provided but not the other, it's also an error
+      if ((updates.serviceName && !updates.providerName) || (!updates.serviceName && updates.providerName)) {
+        return res.status(400).json({ error: 'Both service name and provider name are required when assigning' });
+      }
     }
 
     // Build query from filters
     const query = {};
     
-    if (filters.roomIds && filters.roomIds.length > 0) {
+    // Helper to check if a filter value is valid
+    const isValidFilter = (val) => {
+      if (val === undefined || val === null || val === '') return false;
+      if (Array.isArray(val) && val.length === 0) return false;
+      if (typeof val === 'string' && val.trim().length === 0) return false;
+      return true;
+    };
+    
+    if (filters.roomIds) {
       // Handle multiple room IDs (for group filtering)
       let roomIdArray;
       if (Array.isArray(filters.roomIds)) {
-        roomIdArray = filters.roomIds;
-      } else {
-        roomIdArray = filters.roomIds.split(',').map(id => id.trim());
+        roomIdArray = filters.roomIds.filter(id => isValidFilter(id));
+      } else if (typeof filters.roomIds === 'string' && filters.roomIds.trim()) {
+        roomIdArray = filters.roomIds.split(',').map(id => id.trim()).filter(id => isValidFilter(id));
       }
-      query.roomId = { $in: roomIdArray };
-    } else if (filters.roomId) {
+      if (roomIdArray && roomIdArray.length > 0) {
+        query.roomId = { $in: roomIdArray };
+        console.log('Bulk update: Filtering by roomIds:', roomIdArray);
+      }
+    } else if (isValidFilter(filters.roomId)) {
       query.roomId = filters.roomId;
+      console.log('Bulk update: Filtering by roomId:', filters.roomId);
     }
-    if (filters.type) query.type = filters.type;
-    if (filters.startTime) query.startTime = filters.startTime;
-    if (filters.endTime) query.endTime = filters.endTime;
     
-    if (filters.serviceName) {
+    if (isValidFilter(filters.type)) {
+      query.type = filters.type;
+    }
+    if (isValidFilter(filters.startTime)) {
+      query.startTime = filters.startTime;
+    }
+    if (isValidFilter(filters.endTime)) {
+      query.endTime = filters.endTime;
+    }
+    
+    if (isValidFilter(filters.serviceName)) {
       query.serviceName = { $regex: filters.serviceName, $options: 'i' };
     }
-    if (filters.providerName) {
+    if (isValidFilter(filters.providerName)) {
       query.providerName = { $regex: filters.providerName, $options: 'i' };
     }
     
@@ -785,6 +818,8 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     const isValidDateString = (dateStr) => {
       return dateStr && typeof dateStr === 'string' && dateStr.trim().length > 0;
     };
+    
+    console.log('Bulk update: Query before date filtering:', JSON.stringify(query, null, 2));
     
     // Date range filter - use same logic as GET endpoint
     if (isValidDateString(filters.dateRangeStart) && isValidDateString(filters.dateRangeEnd)) {
@@ -814,9 +849,12 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     // Get slots matching non-date filters first
     let slotsToUpdate = await Slot.find(query).lean();
     
+    console.log(`Bulk update: Found ${slotsToUpdate.length} slots before date filtering`);
+    
     // Apply date filter client-side (same as GET endpoint) for consistency
     if (query.date) {
       const dateFilter = query.date;
+      const beforeDateFilter = slotsToUpdate.length;
       slotsToUpdate = slotsToUpdate.filter(slot => {
         if (!slot.date) return false;
         
@@ -838,6 +876,7 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
         
         return true;
       });
+      console.log(`Bulk update: After date filtering: ${slotsToUpdate.length} slots (was ${beforeDateFilter})`);
     }
     
     // Filter by days of week if specified
@@ -848,10 +887,12 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       } else {
         selectedDays = filters.daysOfWeek.split(',').map(d => parseInt(d));
       }
+      const beforeDayFilter = slotsToUpdate.length;
       slotsToUpdate = slotsToUpdate.filter(slot => {
         const slotDay = new Date(slot.date).getDay();
         return selectedDays.includes(slotDay);
       });
+      console.log(`Bulk update: After daysOfWeek filtering: ${slotsToUpdate.length} slots (was ${beforeDayFilter}), selectedDays: ${selectedDays}`);
     }
     
     // Filter by time ranges if specified
@@ -862,6 +903,7 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       } else {
         selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim());
       }
+      const beforeTimeFilter = slotsToUpdate.length;
       slotsToUpdate = slotsToUpdate.filter(slot => {
         // Check if slot's start time falls within any of the selected time ranges
         return selectedTimeRanges.some(timeRange => {
@@ -869,25 +911,96 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
           return slot.startTime >= rangeStart && slot.startTime < rangeEnd;
         });
       });
+      console.log(`Bulk update: After timeRanges filtering: ${slotsToUpdate.length} slots (was ${beforeTimeFilter})`);
     }
 
-    // Update all matching slots
-    const updateData = {
-      serviceName: updates.serviceName || '',
-      providerName: updates.providerName || '',
-      status: updates.status || (isMakingAvailable ? 'available' : 'booked'),
-      bookedBy: isMakingAvailable ? null : (updates.providerName || null)
-    };
+    // Check if we have slots to update
+    if (slotsToUpdate.length === 0) {
+      console.log('Bulk update: No slots found matching filters');
+      return res.json({
+        success: true,
+        count: 0,
+        message: 'No slots found matching the filters'
+      });
+    }
 
-    const previousSlots = slotsToUpdate.map(slot => slot.toObject());
-    const slotsToUpdateIds = previousSlots.map(slot => slot._id);
+    console.log(`Bulk update: Updating ${slotsToUpdate.length} slots`);
+
+    // Save previous state for undo BEFORE updating (deep copy)
+    const previousSlots = slotsToUpdate.map(slot => ({
+      ...slot,
+      _id: slot._id.toString()
+    }));
+
+    // Update all matching slots
+    const updateData = {};
+    
+    // Always update serviceName and providerName if provided
+    if (updates.serviceName !== undefined) {
+      updateData.serviceName = updates.serviceName || '';
+    }
+    if (updates.providerName !== undefined) {
+      updateData.providerName = updates.providerName || '';
+    }
+    
+    // Determine status based on updates
+    if (updates.status !== undefined) {
+      // Status explicitly provided
+      updateData.status = updates.status;
+    } else if (isMakingAvailable) {
+      // Making available (empty service/provider)
+      updateData.status = 'available';
+    } else if (updates.serviceName && updates.providerName) {
+      // Assigning service/provider - slot becomes booked
+      updateData.status = 'booked';
+    } else if (updates.serviceName === '' && updates.providerName === '') {
+      // Clearing service/provider - slot becomes available
+      updateData.status = 'available';
+    }
+    // If status is not set by now, we'll update it based on serviceName/providerName
+    if (!updateData.status) {
+      if (updateData.serviceName && updateData.providerName) {
+        updateData.status = 'booked';
+      } else {
+        updateData.status = 'available';
+      }
+    }
+    
+    // Update bookedBy based on status
+    if (updateData.status === 'available') {
+      updateData.bookedBy = null;
+    } else if (updateData.providerName) {
+      updateData.bookedBy = updateData.providerName;
+    } else {
+      updateData.bookedBy = null;
+    }
+    
+    console.log('Bulk update: Update data:', JSON.stringify(updateData, null, 2));
+    console.log('Bulk update: Filters received:', JSON.stringify(filters, null, 2));
+
+    // slotsToUpdate is already lean(), so we can use it directly
+    const slotsToUpdateIds = slotsToUpdate.map(slot => slot._id);
+    console.log(`Bulk update: Updating slots with IDs: ${slotsToUpdateIds.slice(0, 5).join(', ')}... (${slotsToUpdateIds.length} total)`);
+    
+    // Check if updateData is empty (shouldn't happen, but safety check)
+    if (Object.keys(updateData).length === 0) {
+      console.error('Bulk update: updateData is empty! Updates:', updates);
+      return res.status(400).json({ 
+        error: 'No update data provided',
+        count: 0
+      });
+    }
     
     const result = await Slot.updateMany(
       { _id: { $in: slotsToUpdateIds } },
       { $set: updateData }
     );
+    
+    console.log(`Bulk update: Result - matched: ${result.matchedCount}, modified: ${result.modifiedCount}, updateData keys: ${Object.keys(updateData).join(', ')}`);
+    console.log(`Bulk update: Total slots to update: ${slotsToUpdate.length}, IDs to update: ${slotsToUpdateIds.length}`);
 
-    if (req.adminId && result.modifiedCount > 0 && previousSlots.length) {
+    // Log admin action if slots were found and modified
+    if (req.adminId && result.matchedCount > 0 && slotsToUpdate.length > 0) {
       const filterSummaryText = formatFilterSummary(filters);
       const updateSummaryText = formatUpdateSummary(updates);
       await logAdminAction({
@@ -895,12 +1008,14 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
         actionName: 'Bulk Updated Slots',
         actionType: 'bulk-update',
         targetCollection: 'Slot',
-        targetIds: previousSlots.map(slot => slot._id),
-        details: `تم تحديث ${result.modifiedCount} موعد باستخدام المرشحات${filterSummaryText}${updateSummaryText}`,
+        targetIds: slotsToUpdate.map(slot => slot._id.toString()),
+        details: `تم تحديث ${result.modifiedCount} موعد من ${result.matchedCount} موعد مطابق باستخدام المرشحات${filterSummaryText}${updateSummaryText}`,
         metadata: {
           filters,
           updates: updateData,
-          before: previousSlots
+          before: previousSlots,
+          matchedCount: result.matchedCount,
+          modifiedCount: result.modifiedCount
         },
         undoPayload: {
           steps: [
@@ -914,10 +1029,34 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       });
     }
 
+    // Return response with detailed information
+    if (result.matchedCount === 0) {
+      console.log('Bulk update: No slots matched the filters');
+      return res.status(404).json({
+        success: false,
+        count: 0,
+        matchedCount: 0,
+        modifiedCount: 0,
+        error: 'No slots found matching the filters',
+        message: 'No slots found matching the filters'
+      });
+    }
+
+    // Return success response - use modifiedCount as the main count
+    // If modifiedCount is 0 but matchedCount > 0, it means slots already have those values
+    const responseCount = result.modifiedCount > 0 ? result.modifiedCount : result.matchedCount;
+    const message = result.modifiedCount > 0 
+      ? `Updated ${result.modifiedCount} slots successfully` 
+      : `Found ${result.matchedCount} slots but they already have the same values (no changes made)`;
+    
+    console.log(`Bulk update: Returning response - count: ${responseCount}, message: ${message}`);
+    
     res.json({
       success: true,
-      count: result.modifiedCount,
-      message: `Updated ${result.modifiedCount} slots`
+      count: responseCount,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+      message: message
     });
   } catch (error) {
     console.error('Bulk update slots error:', error);
