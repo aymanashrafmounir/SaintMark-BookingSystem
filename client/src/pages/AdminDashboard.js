@@ -1534,10 +1534,17 @@ function AdminDashboard({ setIsAuthenticated }) {
         // Apply to filtered results
         toast.info(`⏳ جاري تعيين ${slotsPagination.total} موعد...`);
         
-        // Build filter params - clean up empty values
-        const params = { ...slotFilters };
+        // Build filter params - use same logic as loadSlots to ensure consistency
+        // This ensures we're updating the same slots that are currently displayed
+        const params = {
+          ...slotFilters
+        };
         
-        // Convert arrays to strings
+        console.log('Bulk assign: Original slotFilters:', JSON.stringify(slotFilters, null, 2));
+        console.log('Bulk assign: showAvailableOnly:', showAvailableOnly);
+        console.log('Bulk assign: slotsPagination:', JSON.stringify(slotsPagination, null, 2));
+        
+        // Convert arrays to strings (same as loadSlots)
         if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
           params.daysOfWeek = params.daysOfWeek.join(',');
         } else {
@@ -1556,22 +1563,41 @@ function AdminDashboard({ setIsAuthenticated }) {
           delete params.timeRanges;
         }
         
-        // Remove empty string values
+        // Remove empty filter values (same as loadSlots)
         Object.keys(params).forEach(key => {
           if (params[key] === '' || params[key] === null || params[key] === undefined) {
             delete params[key];
           }
         });
         
-        // Remove status filter if it exists (we don't want to filter by status in bulk update)
-        delete params.status;
+        // Remove pagination-related keys if they exist
+        delete params.page;
+        delete params.limit;
         
-        console.log('Bulk assign: Sending filters:', JSON.stringify(params, null, 2));
+        // Add status filter if showAvailableOnly is enabled (same as loadSlots)
+        // This ensures we update the same slots that are displayed
+        if (showAvailableOnly) {
+          params.status = 'available';
+          console.log('Bulk assign: Added status filter: available (showAvailableOnly is enabled)');
+        } else {
+          // Remove status filter if it exists (we want to update all slots matching other filters)
+          delete params.status;
+          console.log('Bulk assign: Removed status filter (showAvailableOnly is disabled)');
+        }
+        
+        console.log('Bulk assign: Cleaned params before sending:', JSON.stringify(params, null, 2));
+        console.log('Bulk assign: Params keys:', Object.keys(params));
         console.log('Bulk assign: Sending updates:', {
           serviceName: bulkAssignForm.serviceName,
           providerName: bulkAssignForm.providerName
         });
         console.log('Bulk assign: Expected slots count from pagination:', slotsPagination.total);
+        
+        // Check if params is empty after cleanup
+        if (Object.keys(params).length === 0) {
+          console.warn('Bulk assign: WARNING - Params is empty after cleanup! This means no filters were applied.');
+          console.warn('Bulk assign: This will likely result in no slots being found.');
+        }
         
         const response = await slotAPI.bulkUpdate({
           filters: params,

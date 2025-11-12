@@ -814,12 +814,16 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       query.providerName = { $regex: filters.providerName, $options: 'i' };
     }
     
+    // Filter by status if provided
+    if (isValidFilter(filters.status)) {
+      query.status = filters.status;
+      console.log('Bulk update: Filtering by status:', filters.status);
+    }
+    
     // Helper to check if a date string is valid
     const isValidDateString = (dateStr) => {
       return dateStr && typeof dateStr === 'string' && dateStr.trim().length > 0;
     };
-    
-    console.log('Bulk update: Query before date filtering:', JSON.stringify(query, null, 2));
     
     // Date range filter - use same logic as GET endpoint
     if (isValidDateString(filters.dateRangeStart) && isValidDateString(filters.dateRangeEnd)) {
@@ -827,31 +831,70 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       const endDateNextDay = getStartOfNextDayUTC(filters.dateRangeEnd);
       if (startDate && endDateNextDay) {
         query.date = { $gte: startDate, $lt: endDateNextDay };
+        console.log('Bulk update: Added date range filter:', {
+          start: startDate.toISOString(),
+          end: endDateNextDay.toISOString()
+        });
       }
     } else if (isValidDateString(filters.dateRangeStart)) {
       const startDate = getStartOfDayUTC(filters.dateRangeStart);
       if (startDate) {
         query.date = { $gte: startDate };
+        console.log('Bulk update: Added date range start filter:', startDate.toISOString());
       }
     } else if (isValidDateString(filters.dateRangeEnd)) {
       const endDateNextDay = getStartOfNextDayUTC(filters.dateRangeEnd);
       if (endDateNextDay) {
         query.date = { $lt: endDateNextDay };
+        console.log('Bulk update: Added date range end filter:', endDateNextDay.toISOString());
       }
     } else if (isValidDateString(filters.date)) {
       const startOfDay = getStartOfDayUTC(filters.date);
       const startOfNextDay = getStartOfNextDayUTC(filters.date);
       if (startOfDay && startOfNextDay) {
         query.date = { $gte: startOfDay, $lt: startOfNextDay };
+        console.log('Bulk update: Added single date filter:', {
+          start: startOfDay.toISOString(),
+          end: startOfNextDay.toISOString()
+        });
       }
     }
 
+    console.log('Bulk update: Final query before MongoDB search:', JSON.stringify(query, null, 2));
+    console.log('Bulk update: Query keys:', Object.keys(query));
+    
+    // Check if query is empty - if so, we need to find all slots (but this should not happen in practice)
+    if (Object.keys(query).length === 0) {
+      console.warn('Bulk update: WARNING - Query is empty! This means no filters were applied.');
+      console.warn('Bulk update: Filters received:', JSON.stringify(filters, null, 2));
+      // Return error if query is completely empty (this is likely a bug)
+      return res.status(400).json({
+        success: false,
+        count: 0,
+        error: 'No valid filters provided. Please apply at least one filter.',
+        message: 'No valid filters provided'
+      });
+    }
+    
     // Get slots matching non-date filters first
     let slotsToUpdate = await Slot.find(query).lean();
     
-    console.log(`Bulk update: Found ${slotsToUpdate.length} slots before date filtering`);
+    console.log(`Bulk update: Found ${slotsToUpdate.length} slots from MongoDB query`);
+    if (slotsToUpdate.length === 0) {
+      console.log('Bulk update: No slots found! Query was:', JSON.stringify(query, null, 2));
+      console.log('Bulk update: Filters received:', JSON.stringify(filters, null, 2));
+      
+      // Try to find what went wrong - check if filters are valid
+      const filterKeys = Object.keys(filters || {});
+      console.log('Bulk update: Filter keys received:', filterKeys);
+      filterKeys.forEach(key => {
+        console.log(`Bulk update: Filter ${key}:`, filters[key], 'Type:', typeof filters[key]);
+      });
+    }
     
-    // Apply date filter client-side (same as GET endpoint) for consistency
+    // Apply date filter client-side ONLY if we're using date filtering in the query
+    // Note: We're already using date filtering in MongoDB query above, so this client-side filtering
+    // is redundant but kept for consistency with GET endpoint
     if (query.date) {
       const dateFilter = query.date;
       const beforeDateFilter = slotsToUpdate.length;
