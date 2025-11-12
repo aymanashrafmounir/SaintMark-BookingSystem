@@ -238,47 +238,72 @@ function AdminDashboard({ setIsAuthenticated }) {
     }
   }, []);
 
+  // Helper function to build filter params from slotFilters (used by both loadSlots and bulkUpdate)
+  // This ensures all filter-based operations use the EXACT same filter logic
+  const buildFilterParams = useCallback((filters, includePagination = true, includeStatus = true) => {
+    // Create a copy of filters to avoid mutating the original
+    const params = {
+      ...filters
+    };
+    
+    // Add pagination if requested
+    if (includePagination) {
+      params.page = slotsCurrentPage;
+      params.limit = slotsPerPage;
+    }
+    
+    // Add available status filter if toggle is enabled and includeStatus is true
+    // This matches the behavior of loadSlots when showAvailableOnly is enabled
+    if (includeStatus && showAvailableOnly) {
+      params.status = 'available';
+    } else if (!includeStatus) {
+      // Remove status filter if includeStatus is false
+      delete params.status;
+    }
+    
+    // Convert daysOfWeek array to comma-separated string
+    if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
+      params.daysOfWeek = params.daysOfWeek.join(',');
+    } else {
+      delete params.daysOfWeek;
+    }
+    
+    // Convert roomIds array to comma-separated string
+    if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
+      params.roomIds = params.roomIds.join(',');
+    } else {
+      delete params.roomIds;
+    }
+    
+    // Convert timeRanges array to comma-separated string
+    if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
+      params.timeRanges = params.timeRanges.join(',');
+    } else {
+      delete params.timeRanges;
+    }
+    
+    // Remove empty filter values (same logic as loadSlots)
+    Object.keys(params).forEach(key => {
+      if (params[key] === '' || params[key] === null || params[key] === undefined) {
+        delete params[key];
+      }
+    });
+    
+    // Remove pagination keys if not requested
+    if (!includePagination) {
+      delete params.page;
+      delete params.limit;
+    }
+    
+    return params;
+  }, [slotsCurrentPage, slotsPerPage, showAvailableOnly]);
+
   const loadSlots = useCallback(async (page = slotsCurrentPage, filters = slotFilters) => {
     try {
       setSlotsLoading(true);
-      const params = {
-        page,
-        limit: slotsPerPage,
-        ...filters
-      };
-
-      // Add available status filter if toggle is enabled
-      if (showAvailableOnly) {
-        params.status = 'available';
-      }
-      
-      // Convert daysOfWeek array to comma-separated string
-      if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
-        params.daysOfWeek = params.daysOfWeek.join(',');
-      } else {
-        delete params.daysOfWeek;
-      }
-      
-      // Convert roomIds array to comma-separated string
-      if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
-        params.roomIds = params.roomIds.join(',');
-      } else {
-        delete params.roomIds;
-      }
-      
-      // Convert timeRanges array to comma-separated string
-      if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
-        params.timeRanges = params.timeRanges.join(',');
-      } else {
-        delete params.timeRanges;
-      }
-      
-      // Remove empty filter values
-      Object.keys(params).forEach(key => {
-        if (params[key] === '' || params[key] === null || params[key] === undefined) {
-          delete params[key];
-        }
-      });
+      const params = buildFilterParams(filters, true, true);
+      params.page = page;
+      params.limit = slotsPerPage;
       
       const response = await slotAPI.getAll(params);
       setSlots(response.data.slots);
@@ -292,7 +317,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       setSlotsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slotsCurrentPage, slotsPerPage, showAvailableOnly]);
+  }, [slotsCurrentPage, slotsPerPage, showAvailableOnly, buildFilterParams]);
 
   const loadBookings = useCallback(async (page = bookingsCurrentPage) => {
     try {
@@ -1534,58 +1559,16 @@ function AdminDashboard({ setIsAuthenticated }) {
         // Apply to filtered results
         toast.info(`⏳ جاري تعيين ${slotsPagination.total} موعد...`);
         
-        // Build filter params - use same logic as loadSlots to ensure consistency
+        // Build filter params - use EXACT same logic as loadSlots (via buildFilterParams)
         // This ensures we're updating the same slots that are currently displayed
-        const params = {
-          ...slotFilters
-        };
+        // includePagination = false (don't include page/limit)
+        // includeStatus = true (include status filter if showAvailableOnly is enabled)
+        const params = buildFilterParams(slotFilters, false, true);
         
         console.log('Bulk assign: Original slotFilters:', JSON.stringify(slotFilters, null, 2));
+        console.log('Bulk assign: Built params (same as loadSlots):', JSON.stringify(params, null, 2));
         console.log('Bulk assign: showAvailableOnly:', showAvailableOnly);
         console.log('Bulk assign: slotsPagination:', JSON.stringify(slotsPagination, null, 2));
-        
-        // Convert arrays to strings (same as loadSlots)
-        if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
-          params.daysOfWeek = params.daysOfWeek.join(',');
-        } else {
-          delete params.daysOfWeek;
-        }
-        
-        if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
-          params.roomIds = params.roomIds.join(',');
-        } else {
-          delete params.roomIds;
-        }
-        
-        if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
-          params.timeRanges = params.timeRanges.join(',');
-        } else {
-          delete params.timeRanges;
-        }
-        
-        // Remove empty filter values (same as loadSlots)
-        Object.keys(params).forEach(key => {
-          if (params[key] === '' || params[key] === null || params[key] === undefined) {
-            delete params[key];
-          }
-        });
-        
-        // Remove pagination-related keys if they exist
-        delete params.page;
-        delete params.limit;
-        
-        // Add status filter if showAvailableOnly is enabled (same as loadSlots)
-        // This ensures we update the same slots that are displayed
-        if (showAvailableOnly) {
-          params.status = 'available';
-          console.log('Bulk assign: Added status filter: available (showAvailableOnly is enabled)');
-        } else {
-          // Remove status filter if it exists (we want to update all slots matching other filters)
-          delete params.status;
-          console.log('Bulk assign: Removed status filter (showAvailableOnly is disabled)');
-        }
-        
-        console.log('Bulk assign: Cleaned params before sending:', JSON.stringify(params, null, 2));
         console.log('Bulk assign: Params keys:', Object.keys(params));
         console.log('Bulk assign: Sending updates:', {
           serviceName: bulkAssignForm.serviceName,
@@ -1597,6 +1580,8 @@ function AdminDashboard({ setIsAuthenticated }) {
         if (Object.keys(params).length === 0) {
           console.warn('Bulk assign: WARNING - Params is empty after cleanup! This means no filters were applied.');
           console.warn('Bulk assign: This will likely result in no slots being found.');
+          toast.warning('⚠️ لا توجد فلاتر مطبقة. يرجى تطبيق الفلاتر أولاً ثم المحاولة مرة أخرى.');
+          return;
         }
         
         const response = await slotAPI.bulkUpdate({
@@ -1651,37 +1636,15 @@ function AdminDashboard({ setIsAuthenticated }) {
         try {
           toast.info(`⏳ جاري جعل ${slotsPagination.total} موعد متاح...`);
           
-          // Build filter params - clean up empty values
-          const params = { ...slotFilters };
+          // Build filter params - use EXACT same logic as loadSlots (via buildFilterParams)
+          // includePagination = false, includeStatus = true (match what's displayed)
+          const params = buildFilterParams(slotFilters, false, true);
           
-          // Convert arrays to strings
-          if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
-            params.daysOfWeek = params.daysOfWeek.join(',');
-          } else {
-            delete params.daysOfWeek;
+          // Check if params is empty
+          if (Object.keys(params).length === 0) {
+            toast.warning('⚠️ لا توجد فلاتر مطبقة. يرجى تطبيق الفلاتر أولاً ثم المحاولة مرة أخرى.');
+            return;
           }
-          
-          if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
-            params.roomIds = params.roomIds.join(',');
-          } else {
-            delete params.roomIds;
-          }
-          
-          if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
-            params.timeRanges = params.timeRanges.join(',');
-          } else {
-            delete params.timeRanges;
-          }
-          
-          // Remove empty string values
-          Object.keys(params).forEach(key => {
-            if (params[key] === '' || params[key] === null || params[key] === undefined) {
-              delete params[key];
-            }
-          });
-          
-          // Remove status filter if it exists
-          delete params.status;
           
           const response = await slotAPI.bulkUpdate({
             filters: params,
@@ -1732,37 +1695,15 @@ function AdminDashboard({ setIsAuthenticated }) {
         try {
           toast.info(`⏳ جاري حذف ${slotsPagination.total} موعد...`);
           
-          // Build filter params - clean up empty values
-          const params = { ...slotFilters };
+          // Build filter params - use EXACT same logic as loadSlots (via buildFilterParams)
+          // includePagination = false, includeStatus = true (match what's displayed)
+          const params = buildFilterParams(slotFilters, false, true);
           
-          // Convert arrays to strings
-          if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
-            params.daysOfWeek = params.daysOfWeek.join(',');
-          } else {
-            delete params.daysOfWeek;
+          // Check if params is empty
+          if (Object.keys(params).length === 0) {
+            toast.warning('⚠️ لا توجد فلاتر مطبقة. يرجى تطبيق الفلاتر أولاً ثم المحاولة مرة أخرى.');
+            return;
           }
-          
-          if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
-            params.roomIds = params.roomIds.join(',');
-          } else {
-            delete params.roomIds;
-          }
-          
-          if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
-            params.timeRanges = params.timeRanges.join(',');
-          } else {
-            delete params.timeRanges;
-          }
-          
-          // Remove empty string values
-          Object.keys(params).forEach(key => {
-            if (params[key] === '' || params[key] === null || params[key] === undefined) {
-              delete params[key];
-            }
-          });
-          
-          // Remove status filter if it exists
-          delete params.status;
           
           const response = await slotAPI.bulkDelete({ filters: params });
           const deletedCount = response.data.count || 0;
