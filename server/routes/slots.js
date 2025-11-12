@@ -385,35 +385,18 @@ router.get('/', authMiddleware, async (req, res) => {
       if (startDate && endDateNextDay) {
         // Use exclusive upper bound (less than next day) for better date matching
         filter.date = { $gte: startDate, $lt: endDateNextDay };
-        console.log('Date range filter:', {
-          dateRangeStart,
-          dateRangeEnd,
-          startDate: startDate.toISOString(),
-          endDateNextDay: endDateNextDay.toISOString(),
-          filter: filter.date
-        });
       }
     } else if (isValidDateString(dateRangeStart)) {
       // Only start date
       const startDate = getStartOfDayUTC(dateRangeStart);
       if (startDate) {
         filter.date = { $gte: startDate };
-        console.log('Start date filter:', {
-          dateRangeStart,
-          startDate: startDate.toISOString(),
-          filter: filter.date
-        });
       }
     } else if (isValidDateString(dateRangeEnd)) {
       // Only end date - use start of next day as exclusive boundary
       const endDateNextDay = getStartOfNextDayUTC(dateRangeEnd);
       if (endDateNextDay) {
         filter.date = { $lt: endDateNextDay };
-        console.log('End date filter:', {
-          dateRangeEnd,
-          endDateNextDay: endDateNextDay.toISOString(),
-          filter: filter.date
-        });
       }
     } else if (isValidDateString(date)) {
       // Single date filter - search for the entire day
@@ -422,30 +405,7 @@ router.get('/', authMiddleware, async (req, res) => {
       const startOfNextDay = getStartOfNextDayUTC(date);
       if (startOfDay && startOfNextDay) {
         filter.date = { $gte: startOfDay, $lt: startOfNextDay };
-        console.log('Single date filter:', {
-          date,
-          startOfDay: startOfDay.toISOString(),
-          startOfNextDay: startOfNextDay.toISOString(),
-          filter: filter.date
-        });
       }
-    }
-    
-    // Debug: Log the complete filter and query count
-    if (filter.date) {
-      console.log('Final date filter:', {
-        $gte: filter.date.$gte ? filter.date.$gte.toISOString() : undefined,
-        $lte: filter.date.$lte ? filter.date.$lte.toISOString() : undefined,
-        $lt: filter.date.$lt ? filter.date.$lt.toISOString() : undefined
-      });
-      // Log sample of existing dates in database for debugging
-      Slot.find({}).limit(5).select('date').lean().then(sampleSlots => {
-        console.log('Sample dates in database:', sampleSlots.map(s => ({
-          date: s.date,
-          dateISO: s.date instanceof Date ? s.date.toISOString() : s.date,
-          dateString: s.date instanceof Date ? s.date.toString() : s.date
-        })));
-      }).catch(err => console.error('Error fetching sample dates:', err));
     }
 
     // Calculate pagination
@@ -454,27 +414,49 @@ router.get('/', authMiddleware, async (req, res) => {
     const skip = (pageNumber - 1) * limitNumber;
 
     // Execute query with pagination
-    // First, try to find slots without date filter to see what dates exist
-    if (filter.date) {
-      console.log('Query filter before execution:', JSON.stringify(filter, null, 2));
-      
-      // Log sample dates from database before filtering
-      const sampleSlots = await Slot.find({}).limit(10).select('date roomId').lean();
-      console.log('Sample slots in database (first 10):', sampleSlots.map(s => ({
-        _id: s._id,
-        date: s.date,
-        dateISO: s.date instanceof Date ? s.date.toISOString() : s.date,
-        dateLocal: s.date instanceof Date ? s.date.toString() : s.date
-      })));
-    }
+    // Build query without date filter first, then apply date filter more flexibly
+    const queryWithoutDate = { ...filter };
+    delete queryWithoutDate.date;
     
-    // Execute query with all filters including date
-    let slots = await Slot.find(filter)
+    // Execute query - get all slots matching non-date filters first
+    let slots = await Slot.find(queryWithoutDate)
       .populate('roomId', 'name isEnabled')
       .sort({ date: -1, startTime: 1 })
       .lean(); // Use lean() for better performance
     
-    console.log(`Found ${slots.length} slots with filter:`, filter.date ? JSON.stringify(filter.date) : 'no date filter');
+    // Apply date filter on the results (more flexible than MongoDB query)
+    if (filter.date) {
+      const dateFilter = filter.date;
+      
+      slots = slots.filter(slot => {
+        if (!slot.date) return false;
+        
+        const slotDate = slot.date instanceof Date ? slot.date : new Date(slot.date);
+        const slotDateStr = slotDate.toISOString().split('T')[0];
+        
+        // Handle different date filter types
+        if (dateFilter.$gte && dateFilter.$lt) {
+          // Date range: start <= date < end
+          const startDateStr = dateFilter.$gte.toISOString().split('T')[0];
+          const endDateStr = dateFilter.$lt.toISOString().split('T')[0];
+          return slotDateStr >= startDateStr && slotDateStr < endDateStr;
+        } else if (dateFilter.$gte) {
+          // Only start date: date >= start
+          const startDateStr = dateFilter.$gte.toISOString().split('T')[0];
+          return slotDateStr >= startDateStr;
+        } else if (dateFilter.$lt) {
+          // Only end date: date < end
+          const endDateStr = dateFilter.$lt.toISOString().split('T')[0];
+          return slotDateStr < endDateStr;
+        } else if (dateFilter.$lte) {
+          // Less than or equal
+          const endDateStr = dateFilter.$lte.toISOString().split('T')[0];
+          return slotDateStr <= endDateStr;
+        }
+        
+        return true;
+      });
+    }
     
     // Filter by days of week if specified (client-side filtering for flexibility)
     if (daysOfWeek) {
