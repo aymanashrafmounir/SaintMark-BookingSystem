@@ -781,33 +781,64 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       query.providerName = { $regex: filters.providerName, $options: 'i' };
     }
     
-    // Date range filter
-    if (filters.dateRangeStart && filters.dateRangeEnd) {
+    // Helper to check if a date string is valid
+    const isValidDateString = (dateStr) => {
+      return dateStr && typeof dateStr === 'string' && dateStr.trim().length > 0;
+    };
+    
+    // Date range filter - use same logic as GET endpoint
+    if (isValidDateString(filters.dateRangeStart) && isValidDateString(filters.dateRangeEnd)) {
       const startDate = getStartOfDayUTC(filters.dateRangeStart);
-      const endDate = getEndOfDayUTC(filters.dateRangeEnd);
-      if (startDate && endDate) {
-        query.date = { $gte: startDate, $lte: endDate };
+      const endDateNextDay = getStartOfNextDayUTC(filters.dateRangeEnd);
+      if (startDate && endDateNextDay) {
+        query.date = { $gte: startDate, $lt: endDateNextDay };
       }
-    } else if (filters.dateRangeStart) {
+    } else if (isValidDateString(filters.dateRangeStart)) {
       const startDate = getStartOfDayUTC(filters.dateRangeStart);
       if (startDate) {
         query.date = { $gte: startDate };
       }
-    } else if (filters.dateRangeEnd) {
-      const endDate = getEndOfDayUTC(filters.dateRangeEnd);
-      if (endDate) {
-        query.date = { $lte: endDate };
+    } else if (isValidDateString(filters.dateRangeEnd)) {
+      const endDateNextDay = getStartOfNextDayUTC(filters.dateRangeEnd);
+      if (endDateNextDay) {
+        query.date = { $lt: endDateNextDay };
       }
-    } else if (filters.date) {
+    } else if (isValidDateString(filters.date)) {
       const startOfDay = getStartOfDayUTC(filters.date);
-      const endOfDay = getEndOfDayUTC(filters.date);
-      if (startOfDay && endOfDay) {
-        query.date = { $gte: startOfDay, $lte: endOfDay };
+      const startOfNextDay = getStartOfNextDayUTC(filters.date);
+      if (startOfDay && startOfNextDay) {
+        query.date = { $gte: startOfDay, $lt: startOfNextDay };
       }
     }
 
-    // Get slots to filter by day of week if needed
-    let slotsToUpdate = await Slot.find(query);
+    // Get slots matching non-date filters first
+    let slotsToUpdate = await Slot.find(query).lean();
+    
+    // Apply date filter client-side (same as GET endpoint) for consistency
+    if (query.date) {
+      const dateFilter = query.date;
+      slotsToUpdate = slotsToUpdate.filter(slot => {
+        if (!slot.date) return false;
+        
+        const slotDate = slot.date instanceof Date ? slot.date : new Date(slot.date);
+        const slotDateStr = slotDate.toISOString().split('T')[0];
+        
+        // Handle different date filter types
+        if (dateFilter.$gte && dateFilter.$lt) {
+          const startDateStr = dateFilter.$gte.toISOString().split('T')[0];
+          const endDateStr = dateFilter.$lt.toISOString().split('T')[0];
+          return slotDateStr >= startDateStr && slotDateStr < endDateStr;
+        } else if (dateFilter.$gte) {
+          const startDateStr = dateFilter.$gte.toISOString().split('T')[0];
+          return slotDateStr >= startDateStr;
+        } else if (dateFilter.$lt) {
+          const endDateStr = dateFilter.$lt.toISOString().split('T')[0];
+          return slotDateStr < endDateStr;
+        }
+        
+        return true;
+      });
+    }
     
     // Filter by days of week if specified
     if (filters.daysOfWeek && filters.daysOfWeek.length > 0) {
@@ -1038,33 +1069,64 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
       query.providerName = { $regex: filters.providerName, $options: 'i' };
     }
     
-    // Date range filter
-    if (filters.dateRangeStart && filters.dateRangeEnd) {
+    // Helper to check if a date string is valid
+    const isValidDateString = (dateStr) => {
+      return dateStr && typeof dateStr === 'string' && dateStr.trim().length > 0;
+    };
+    
+    // Date range filter - use same logic as GET and bulk-update endpoints
+    if (isValidDateString(filters.dateRangeStart) && isValidDateString(filters.dateRangeEnd)) {
       const startDate = getStartOfDayUTC(filters.dateRangeStart);
-      const endDate = getEndOfDayUTC(filters.dateRangeEnd);
-      if (startDate && endDate) {
-        query.date = { $gte: startDate, $lte: endDate };
+      const endDateNextDay = getStartOfNextDayUTC(filters.dateRangeEnd);
+      if (startDate && endDateNextDay) {
+        query.date = { $gte: startDate, $lt: endDateNextDay };
       }
-    } else if (filters.dateRangeStart) {
+    } else if (isValidDateString(filters.dateRangeStart)) {
       const startDate = getStartOfDayUTC(filters.dateRangeStart);
       if (startDate) {
         query.date = { $gte: startDate };
       }
-    } else if (filters.dateRangeEnd) {
-      const endDate = getEndOfDayUTC(filters.dateRangeEnd);
-      if (endDate) {
-        query.date = { $lte: endDate };
+    } else if (isValidDateString(filters.dateRangeEnd)) {
+      const endDateNextDay = getStartOfNextDayUTC(filters.dateRangeEnd);
+      if (endDateNextDay) {
+        query.date = { $lt: endDateNextDay };
       }
-    } else if (filters.date) {
+    } else if (isValidDateString(filters.date)) {
       const startOfDay = getStartOfDayUTC(filters.date);
-      const endOfDay = getEndOfDayUTC(filters.date);
-      if (startOfDay && endOfDay) {
-        query.date = { $gte: startOfDay, $lte: endOfDay };
+      const startOfNextDay = getStartOfNextDayUTC(filters.date);
+      if (startOfDay && startOfNextDay) {
+        query.date = { $gte: startOfDay, $lt: startOfNextDay };
       }
     }
 
-    // Get slots to filter by day of week if needed
-    let slotsToDelete = await Slot.find(query);
+    // Get slots matching non-date filters first
+    let slotsToDelete = await Slot.find(query).lean();
+    
+    // Apply date filter client-side (same as GET and bulk-update endpoints) for consistency
+    if (query.date) {
+      const dateFilter = query.date;
+      slotsToDelete = slotsToDelete.filter(slot => {
+        if (!slot.date) return false;
+        
+        const slotDate = slot.date instanceof Date ? slot.date : new Date(slot.date);
+        const slotDateStr = slotDate.toISOString().split('T')[0];
+        
+        // Handle different date filter types
+        if (dateFilter.$gte && dateFilter.$lt) {
+          const startDateStr = dateFilter.$gte.toISOString().split('T')[0];
+          const endDateStr = dateFilter.$lt.toISOString().split('T')[0];
+          return slotDateStr >= startDateStr && slotDateStr < endDateStr;
+        } else if (dateFilter.$gte) {
+          const startDateStr = dateFilter.$gte.toISOString().split('T')[0];
+          return slotDateStr >= startDateStr;
+        } else if (dateFilter.$lt) {
+          const endDateStr = dateFilter.$lt.toISOString().split('T')[0];
+          return slotDateStr < endDateStr;
+        }
+        
+        return true;
+      });
+    }
     
     // Filter by days of week if specified
     if (filters.daysOfWeek) {
@@ -1097,29 +1159,29 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
       });
     }
 
-    const slotsToDeletePlain = slotsToDelete.map(slot => slot.toObject());
     // Delete all matching slots
-    const slotsToDeleteIds = slotsToDeletePlain.map(slot => slot._id);
+    // slotsToDelete is already lean(), so we can use it directly
+    const slotsToDeleteIds = slotsToDelete.map(slot => slot._id);
     const result = await Slot.deleteMany({ _id: { $in: slotsToDeleteIds } });
 
-    if (req.adminId && result.deletedCount > 0 && slotsToDeletePlain.length) {
+    if (req.adminId && result.deletedCount > 0 && slotsToDelete.length > 0) {
       await logAdminAction({
         adminId: req.adminId,
         actionName: 'Bulk Removed Slots',
         actionType: 'bulk-delete',
         targetCollection: 'Slot',
-        targetIds: slotsToDeletePlain.map(slot => slot._id),
+        targetIds: slotsToDelete.map(slot => slot._id),
         details: `تم حذف ${result.deletedCount} موعد باستخدام المرشحات`,
         metadata: {
           filters,
-          removedSlots: slotsToDeletePlain
+          removedSlots: slotsToDelete
         },
         undoPayload: {
           steps: [
             {
               operation: 'restore',
               collection: 'Slot',
-              documents: slotsToDeletePlain
+              documents: slotsToDelete
             }
           ]
         }

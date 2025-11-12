@@ -1534,17 +1534,37 @@ function AdminDashboard({ setIsAuthenticated }) {
         // Apply to filtered results
         toast.info(`⏳ جاري تعيين ${slotsPagination.total} موعد...`);
         
-        // Build filter params
+        // Build filter params - clean up empty values
         const params = { ...slotFilters };
+        
+        // Convert arrays to strings
         if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
           params.daysOfWeek = params.daysOfWeek.join(',');
+        } else {
+          delete params.daysOfWeek;
         }
+        
         if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
           params.roomIds = params.roomIds.join(',');
+        } else {
+          delete params.roomIds;
         }
+        
         if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
           params.timeRanges = params.timeRanges.join(',');
+        } else {
+          delete params.timeRanges;
         }
+        
+        // Remove empty string values
+        Object.keys(params).forEach(key => {
+          if (params[key] === '' || params[key] === null || params[key] === undefined) {
+            delete params[key];
+          }
+        });
+        
+        // Remove status filter if it exists (we don't want to filter by status in bulk update)
+        delete params.status;
         
         const response = await slotAPI.bulkUpdate({
           filters: params,
@@ -1584,18 +1604,37 @@ function AdminDashboard({ setIsAuthenticated }) {
         try {
           toast.info(`⏳ جاري جعل ${slotsPagination.total} موعد متاح...`);
           
-          // Build filter params
+          // Build filter params - clean up empty values
           const params = { ...slotFilters };
+          
+          // Convert arrays to strings
           if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
             params.daysOfWeek = params.daysOfWeek.join(',');
-          }
-          if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
-            params.roomIds = params.roomIds.join(',');
-          }
-          if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
-            params.timeRanges = params.timeRanges.join(',');
+          } else {
+            delete params.daysOfWeek;
           }
           
+          if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
+            params.roomIds = params.roomIds.join(',');
+          } else {
+            delete params.roomIds;
+          }
+          
+          if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
+            params.timeRanges = params.timeRanges.join(',');
+          } else {
+            delete params.timeRanges;
+          }
+          
+          // Remove empty string values
+          Object.keys(params).forEach(key => {
+            if (params[key] === '' || params[key] === null || params[key] === undefined) {
+              delete params[key];
+            }
+          });
+          
+          // Remove status filter if it exists
+          delete params.status;
           
           const response = await slotAPI.bulkUpdate({
             filters: params,
@@ -1636,17 +1675,37 @@ function AdminDashboard({ setIsAuthenticated }) {
         try {
           toast.info(`⏳ جاري حذف ${slotsPagination.total} موعد...`);
           
-          // Build filter params
+          // Build filter params - clean up empty values
           const params = { ...slotFilters };
+          
+          // Convert arrays to strings
           if (params.daysOfWeek && Array.isArray(params.daysOfWeek) && params.daysOfWeek.length > 0) {
             params.daysOfWeek = params.daysOfWeek.join(',');
+          } else {
+            delete params.daysOfWeek;
           }
+          
           if (params.roomIds && Array.isArray(params.roomIds) && params.roomIds.length > 0) {
             params.roomIds = params.roomIds.join(',');
+          } else {
+            delete params.roomIds;
           }
+          
           if (params.timeRanges && Array.isArray(params.timeRanges) && params.timeRanges.length > 0) {
             params.timeRanges = params.timeRanges.join(',');
+          } else {
+            delete params.timeRanges;
           }
+          
+          // Remove empty string values
+          Object.keys(params).forEach(key => {
+            if (params[key] === '' || params[key] === null || params[key] === undefined) {
+              delete params[key];
+            }
+          });
+          
+          // Remove status filter if it exists
+          delete params.status;
           
           const response = await slotAPI.bulkDelete({ filters: params });
           const deletedCount = response.data.count || slotsPagination.total;
