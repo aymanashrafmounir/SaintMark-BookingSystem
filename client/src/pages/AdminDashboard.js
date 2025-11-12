@@ -1583,7 +1583,6 @@ function AdminDashboard({ setIsAuthenticated }) {
         
         console.log('Bulk assign: Response received:', response.data);
         
-        const updatedCount = response.data.count || 0;
         const matchedCount = response.data.matchedCount || 0;
         const modifiedCount = response.data.modifiedCount || 0;
         
@@ -1668,7 +1667,6 @@ function AdminDashboard({ setIsAuthenticated }) {
             }
           });
           
-          const updatedCount = response.data.count || 0;
           const matchedCount = response.data.matchedCount || 0;
           const modifiedCount = response.data.modifiedCount || 0;
           
