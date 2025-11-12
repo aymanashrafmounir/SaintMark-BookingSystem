@@ -1976,7 +1976,12 @@ function AdminDashboard({ setIsAuthenticated }) {
                       type="date"
                       value={slotFilters.date}
                       onChange={(e) => {
-                        setSlotFilters({ ...slotFilters, date: e.target.value });
+                        setSlotFilters({ 
+                          ...slotFilters, 
+                          date: e.target.value,
+                          dateRangeStart: '', // Clear date range when single date is selected
+                          dateRangeEnd: ''    // Clear date range when single date is selected
+                        });
                       }}
                       placeholder="تصفية بالتاريخ"
                     />

@@ -147,6 +147,70 @@ const formatUpdateSummary = (updates = {}) => {
   return parts.length ? ` | التعديلات: ${parts.join('، ')}` : '';
 };
 
+// Helper function to parse date string to UTC Date (handles YYYY-MM-DD format)
+const parseDateToUTC = (dateString) => {
+  // Return null if dateString is falsy or empty string
+  if (!dateString || (typeof dateString === 'string' && dateString.trim().length === 0)) {
+    return null;
+  }
+  
+  // If it's already a Date object, return it
+  if (dateString instanceof Date) {
+    return dateString;
+  }
+  
+  // Ensure dateString is a string
+  if (typeof dateString !== 'string') {
+    return null;
+  }
+  
+  // Parse YYYY-MM-DD format as UTC date
+  // Split the date string to avoid timezone interpretation issues
+  const dateOnly = dateString.split('T')[0].trim();
+  const parts = dateOnly.split('-');
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+    const day = parseInt(parts[2], 10);
+    
+    // Validate that we got valid numbers
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return null;
+    }
+    
+    // Validate reasonable date ranges
+    if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
+      return null;
+    }
+    
+    return new Date(Date.UTC(year, month, day));
+  }
+  
+  // Fallback to standard date parsing
+  const parsedDate = new Date(dateString);
+  // Check if the parsed date is valid
+  if (isNaN(parsedDate.getTime())) {
+    return null;
+  }
+  return parsedDate;
+};
+
+// Helper function to get start of day in UTC
+const getStartOfDayUTC = (dateString) => {
+  const date = parseDateToUTC(dateString);
+  if (!date) return null;
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
+// Helper function to get end of day in UTC
+const getEndOfDayUTC = (dateString) => {
+  const date = parseDateToUTC(dateString);
+  if (!date) return null;
+  date.setUTCHours(23, 59, 59, 999);
+  return date;
+};
+
 // Get slots by room and date (public - for users)
 router.get('/room/:roomId', async (req, res) => {
   try {
@@ -156,11 +220,11 @@ router.get('/room/:roomId', async (req, res) => {
     let query = { roomId };
     
     if (date) {
-      const searchDate = new Date(date);
-      const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
-      
-      query.date = { $gte: startOfDay, $lte: endOfDay };
+      const startOfDay = getStartOfDayUTC(date);
+      const endOfDay = getEndOfDayUTC(date);
+      if (startOfDay && endOfDay) {
+        query.date = { $gte: startOfDay, $lte: endOfDay };
+      }
     }
 
     const slots = await Slot.find(query)
@@ -201,19 +265,21 @@ router.get('/public', async (req, res) => {
     
     // Date range filtering
     if (dateRangeStart && dateRangeEnd) {
-      const startDate = new Date(dateRangeStart);
-      startDate.setUTCHours(0, 0, 0, 0);
-      const endDate = new Date(dateRangeEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
-      filter.date = { $gte: startDate, $lte: endDate };
+      const startDate = getStartOfDayUTC(dateRangeStart);
+      const endDate = getEndOfDayUTC(dateRangeEnd);
+      if (startDate && endDate) {
+        filter.date = { $gte: startDate, $lte: endDate };
+      }
     } else if (dateRangeStart) {
-      const startDate = new Date(dateRangeStart);
-      startDate.setUTCHours(0, 0, 0, 0);
-      filter.date = { $gte: startDate };
+      const startDate = getStartOfDayUTC(dateRangeStart);
+      if (startDate) {
+        filter.date = { $gte: startDate };
+      }
     } else if (dateRangeEnd) {
-      const endDate = new Date(dateRangeEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
-      filter.date = { $lte: endDate };
+      const endDate = getEndOfDayUTC(dateRangeEnd);
+      if (endDate) {
+        filter.date = { $lte: endDate };
+      }
     }
     
     // Time filtering
@@ -294,25 +360,37 @@ router.get('/', authMiddleware, async (req, res) => {
     }
     
     // Date filtering - prioritize range over single date
-    if (dateRangeStart && dateRangeEnd) {
-      const startDate = new Date(dateRangeStart);
-      startDate.setUTCHours(0, 0, 0, 0);
-      const endDate = new Date(dateRangeEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
-      filter.date = { $gte: startDate, $lte: endDate };
-    } else if (dateRangeStart) {
-      const startDate = new Date(dateRangeStart);
-      startDate.setUTCHours(0, 0, 0, 0);
-      filter.date = { $gte: startDate };
-    } else if (dateRangeEnd) {
-      const endDate = new Date(dateRangeEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
-      filter.date = { $lte: endDate };
-    } else if (date) {
-      const searchDate = new Date(date);
-      const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
-      filter.date = { $gte: startOfDay, $lte: endOfDay };
+    // Helper to check if a date string is valid (not empty after trimming)
+    const isValidDateString = (dateStr) => {
+      return dateStr && typeof dateStr === 'string' && dateStr.trim().length > 0;
+    };
+    
+    // Check for date range first (both start and end must be present)
+    if (isValidDateString(dateRangeStart) && isValidDateString(dateRangeEnd)) {
+      const startDate = getStartOfDayUTC(dateRangeStart);
+      const endDate = getEndOfDayUTC(dateRangeEnd);
+      if (startDate && endDate) {
+        filter.date = { $gte: startDate, $lte: endDate };
+      }
+    } else if (isValidDateString(dateRangeStart)) {
+      // Only start date
+      const startDate = getStartOfDayUTC(dateRangeStart);
+      if (startDate) {
+        filter.date = { $gte: startDate };
+      }
+    } else if (isValidDateString(dateRangeEnd)) {
+      // Only end date
+      const endDate = getEndOfDayUTC(dateRangeEnd);
+      if (endDate) {
+        filter.date = { $lte: endDate };
+      }
+    } else if (isValidDateString(date)) {
+      // Single date filter
+      const startOfDay = getStartOfDayUTC(date);
+      const endOfDay = getEndOfDayUTC(date);
+      if (startOfDay && endOfDay) {
+        filter.date = { $gte: startOfDay, $lte: endOfDay };
+      }
     }
 
     // Calculate pagination
@@ -387,13 +465,20 @@ router.post('/', authMiddleware, async (req, res) => {
     // If they have values, slot is unavailable (already has service/provider assigned)
     const hasServiceProvider = serviceName && providerName;
     
+    // Normalize date to UTC to ensure consistency with queries
+    const normalizedDate = parseDateToUTC(date);
+    if (!normalizedDate) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+    normalizedDate.setUTCHours(0, 0, 0, 0);
+    
     const slot = new Slot({
       roomId,
       startTime,
       endTime,
       serviceName: serviceName || '',
       providerName: providerName || '',
-      date: new Date(date),
+      date: normalizedDate,
       type: type || 'single',
       status: hasServiceProvider ? 'booked' : 'available',
       bookedBy: hasServiceProvider ? providerName : null
@@ -464,13 +549,20 @@ router.post('/bulk', authMiddleware, async (req, res) => {
       for (const slotData of slots) {
         const hasServiceProvider = slotData.serviceName && slotData.providerName;
         
+        // Normalize date to UTC to ensure consistency with queries
+        const normalizedDate = parseDateToUTC(slotData.date);
+        if (!normalizedDate) {
+          return res.status(400).json({ error: `Invalid date format for slot: ${slotData.date}` });
+        }
+        normalizedDate.setUTCHours(0, 0, 0, 0);
+        
         slotsToCreate.push({
           roomId,
           startTime: slotData.startTime,
           endTime: slotData.endTime,
           serviceName: slotData.serviceName || '',
           providerName: slotData.providerName || '',
-          date: new Date(slotData.date),
+          date: normalizedDate,
           type: slotData.type || 'single',
           status: hasServiceProvider ? 'booked' : 'available',
           bookedBy: hasServiceProvider ? slotData.providerName : null
@@ -637,24 +729,27 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     
     // Date range filter
     if (filters.dateRangeStart && filters.dateRangeEnd) {
-      const startDate = new Date(filters.dateRangeStart);
-      startDate.setUTCHours(0, 0, 0, 0);
-      const endDate = new Date(filters.dateRangeEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
-      query.date = { $gte: startDate, $lte: endDate };
+      const startDate = getStartOfDayUTC(filters.dateRangeStart);
+      const endDate = getEndOfDayUTC(filters.dateRangeEnd);
+      if (startDate && endDate) {
+        query.date = { $gte: startDate, $lte: endDate };
+      }
     } else if (filters.dateRangeStart) {
-      const startDate = new Date(filters.dateRangeStart);
-      startDate.setUTCHours(0, 0, 0, 0);
-      query.date = { $gte: startDate };
+      const startDate = getStartOfDayUTC(filters.dateRangeStart);
+      if (startDate) {
+        query.date = { $gte: startDate };
+      }
     } else if (filters.dateRangeEnd) {
-      const endDate = new Date(filters.dateRangeEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
-      query.date = { $lte: endDate };
+      const endDate = getEndOfDayUTC(filters.dateRangeEnd);
+      if (endDate) {
+        query.date = { $lte: endDate };
+      }
     } else if (filters.date) {
-      const searchDate = new Date(filters.date);
-      const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
-      query.date = { $gte: startOfDay, $lte: endOfDay };
+      const startOfDay = getStartOfDayUTC(filters.date);
+      const endOfDay = getEndOfDayUTC(filters.date);
+      if (startOfDay && endOfDay) {
+        query.date = { $gte: startOfDay, $lte: endOfDay };
+      }
     }
 
     // Get slots to filter by day of week if needed
@@ -764,7 +859,13 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (serviceName !== undefined) slot.serviceName = serviceName || '';
     if (providerName !== undefined) slot.providerName = providerName || '';
     
-    if (date) slot.date = new Date(date);
+    if (date) {
+      const normalizedDate = parseDateToUTC(date);
+      if (normalizedDate) {
+        normalizedDate.setUTCHours(0, 0, 0, 0);
+        slot.date = normalizedDate;
+      }
+    }
     if (type) slot.type = type;
     
     // Update status based on whether service/provider are filled
@@ -885,24 +986,27 @@ router.post('/bulk-delete', authMiddleware, async (req, res) => {
     
     // Date range filter
     if (filters.dateRangeStart && filters.dateRangeEnd) {
-      const startDate = new Date(filters.dateRangeStart);
-      startDate.setUTCHours(0, 0, 0, 0);
-      const endDate = new Date(filters.dateRangeEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
-      query.date = { $gte: startDate, $lte: endDate };
+      const startDate = getStartOfDayUTC(filters.dateRangeStart);
+      const endDate = getEndOfDayUTC(filters.dateRangeEnd);
+      if (startDate && endDate) {
+        query.date = { $gte: startDate, $lte: endDate };
+      }
     } else if (filters.dateRangeStart) {
-      const startDate = new Date(filters.dateRangeStart);
-      startDate.setUTCHours(0, 0, 0, 0);
-      query.date = { $gte: startDate };
+      const startDate = getStartOfDayUTC(filters.dateRangeStart);
+      if (startDate) {
+        query.date = { $gte: startDate };
+      }
     } else if (filters.dateRangeEnd) {
-      const endDate = new Date(filters.dateRangeEnd);
-      endDate.setUTCHours(23, 59, 59, 999);
-      query.date = { $lte: endDate };
+      const endDate = getEndOfDayUTC(filters.dateRangeEnd);
+      if (endDate) {
+        query.date = { $lte: endDate };
+      }
     } else if (filters.date) {
-      const searchDate = new Date(filters.date);
-      const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
-      query.date = { $gte: startOfDay, $lte: endOfDay };
+      const startOfDay = getStartOfDayUTC(filters.date);
+      const endOfDay = getEndOfDayUTC(filters.date);
+      if (startOfDay && endOfDay) {
+        query.date = { $gte: startOfDay, $lte: endOfDay };
+      }
     }
 
     // Get slots to filter by day of week if needed
