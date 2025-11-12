@@ -825,13 +825,14 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       return dateStr && typeof dateStr === 'string' && dateStr.trim().length > 0;
     };
     
-    // Date range filter - use same logic as GET endpoint
+    // Build date filter object (but don't add it to query yet - we'll apply it client-side like GET endpoint)
+    let dateFilter = null;
     if (isValidDateString(filters.dateRangeStart) && isValidDateString(filters.dateRangeEnd)) {
       const startDate = getStartOfDayUTC(filters.dateRangeStart);
       const endDateNextDay = getStartOfNextDayUTC(filters.dateRangeEnd);
       if (startDate && endDateNextDay) {
-        query.date = { $gte: startDate, $lt: endDateNextDay };
-        console.log('Bulk update: Added date range filter:', {
+        dateFilter = { $gte: startDate, $lt: endDateNextDay };
+        console.log('Bulk update: Date range filter:', {
           start: startDate.toISOString(),
           end: endDateNextDay.toISOString()
         });
@@ -839,32 +840,33 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
     } else if (isValidDateString(filters.dateRangeStart)) {
       const startDate = getStartOfDayUTC(filters.dateRangeStart);
       if (startDate) {
-        query.date = { $gte: startDate };
-        console.log('Bulk update: Added date range start filter:', startDate.toISOString());
+        dateFilter = { $gte: startDate };
+        console.log('Bulk update: Date range start filter:', startDate.toISOString());
       }
     } else if (isValidDateString(filters.dateRangeEnd)) {
       const endDateNextDay = getStartOfNextDayUTC(filters.dateRangeEnd);
       if (endDateNextDay) {
-        query.date = { $lt: endDateNextDay };
-        console.log('Bulk update: Added date range end filter:', endDateNextDay.toISOString());
+        dateFilter = { $lt: endDateNextDay };
+        console.log('Bulk update: Date range end filter:', endDateNextDay.toISOString());
       }
     } else if (isValidDateString(filters.date)) {
       const startOfDay = getStartOfDayUTC(filters.date);
       const startOfNextDay = getStartOfNextDayUTC(filters.date);
       if (startOfDay && startOfNextDay) {
-        query.date = { $gte: startOfDay, $lt: startOfNextDay };
-        console.log('Bulk update: Added single date filter:', {
+        dateFilter = { $gte: startOfDay, $lt: startOfNextDay };
+        console.log('Bulk update: Single date filter:', {
           start: startOfDay.toISOString(),
           end: startOfNextDay.toISOString()
         });
       }
     }
 
-    console.log('Bulk update: Final query before MongoDB search:', JSON.stringify(query, null, 2));
+    console.log('Bulk update: Query before MongoDB search (without date):', JSON.stringify(query, null, 2));
     console.log('Bulk update: Query keys:', Object.keys(query));
+    console.log('Bulk update: Date filter (will be applied client-side):', dateFilter ? JSON.stringify(dateFilter, null, 2) : 'none');
     
     // Check if query is empty - if so, we need to find all slots (but this should not happen in practice)
-    if (Object.keys(query).length === 0) {
+    if (Object.keys(query).length === 0 && !dateFilter) {
       console.warn('Bulk update: WARNING - Query is empty! This means no filters were applied.');
       console.warn('Bulk update: Filters received:', JSON.stringify(filters, null, 2));
       // Return error if query is completely empty (this is likely a bug)
@@ -876,12 +878,13 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       });
     }
     
-    // Get slots matching non-date filters first
+    // Get slots matching non-date filters first (same as GET endpoint)
+    // We'll apply date filter client-side for consistency and flexibility
     let slotsToUpdate = await Slot.find(query).lean();
     
-    console.log(`Bulk update: Found ${slotsToUpdate.length} slots from MongoDB query`);
+    console.log(`Bulk update: Found ${slotsToUpdate.length} slots from MongoDB query (before date/days/time filtering)`);
     if (slotsToUpdate.length === 0) {
-      console.log('Bulk update: No slots found! Query was:', JSON.stringify(query, null, 2));
+      console.log('Bulk update: No slots found from MongoDB! Query was:', JSON.stringify(query, null, 2));
       console.log('Bulk update: Filters received:', JSON.stringify(filters, null, 2));
       
       // Try to find what went wrong - check if filters are valid
@@ -892,11 +895,8 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       });
     }
     
-    // Apply date filter client-side ONLY if we're using date filtering in the query
-    // Note: We're already using date filtering in MongoDB query above, so this client-side filtering
-    // is redundant but kept for consistency with GET endpoint
-    if (query.date) {
-      const dateFilter = query.date;
+    // Apply date filter client-side (same as GET endpoint) for consistency
+    if (dateFilter) {
       const beforeDateFilter = slotsToUpdate.length;
       slotsToUpdate = slotsToUpdate.filter(slot => {
         if (!slot.date) return false;
@@ -906,13 +906,16 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
         
         // Handle different date filter types
         if (dateFilter.$gte && dateFilter.$lt) {
+          // Date range: start <= date < end
           const startDateStr = dateFilter.$gte.toISOString().split('T')[0];
           const endDateStr = dateFilter.$lt.toISOString().split('T')[0];
           return slotDateStr >= startDateStr && slotDateStr < endDateStr;
         } else if (dateFilter.$gte) {
+          // Only start date: date >= start
           const startDateStr = dateFilter.$gte.toISOString().split('T')[0];
           return slotDateStr >= startDateStr;
         } else if (dateFilter.$lt) {
+          // Only end date: date < end
           const endDateStr = dateFilter.$lt.toISOString().split('T')[0];
           return slotDateStr < endDateStr;
         }
@@ -922,40 +925,51 @@ router.put('/bulk-update', authMiddleware, async (req, res) => {
       console.log(`Bulk update: After date filtering: ${slotsToUpdate.length} slots (was ${beforeDateFilter})`);
     }
     
-    // Filter by days of week if specified
-    if (filters.daysOfWeek && filters.daysOfWeek.length > 0) {
+    // Filter by days of week if specified (same as GET endpoint)
+    if (filters.daysOfWeek) {
       let selectedDays;
       if (Array.isArray(filters.daysOfWeek)) {
-        selectedDays = filters.daysOfWeek.map(d => parseInt(d));
-      } else {
-        selectedDays = filters.daysOfWeek.split(',').map(d => parseInt(d));
+        selectedDays = filters.daysOfWeek.filter(d => d !== '' && d !== null && d !== undefined).map(d => parseInt(d));
+      } else if (typeof filters.daysOfWeek === 'string' && filters.daysOfWeek.trim().length > 0) {
+        selectedDays = filters.daysOfWeek.split(',').map(d => d.trim()).filter(d => d.length > 0).map(d => parseInt(d));
       }
-      const beforeDayFilter = slotsToUpdate.length;
-      slotsToUpdate = slotsToUpdate.filter(slot => {
-        const slotDay = new Date(slot.date).getDay();
-        return selectedDays.includes(slotDay);
-      });
-      console.log(`Bulk update: After daysOfWeek filtering: ${slotsToUpdate.length} slots (was ${beforeDayFilter}), selectedDays: ${selectedDays}`);
+      
+      if (selectedDays && selectedDays.length > 0) {
+        const beforeDayFilter = slotsToUpdate.length;
+        slotsToUpdate = slotsToUpdate.filter(slot => {
+          if (!slot.date) return false;
+          const slotDay = new Date(slot.date).getDay(); // 0 = Sunday, 1 = Monday, etc.
+          return selectedDays.includes(slotDay);
+        });
+        console.log(`Bulk update: After daysOfWeek filtering: ${slotsToUpdate.length} slots (was ${beforeDayFilter}), selectedDays: ${selectedDays}`);
+      }
     }
     
-    // Filter by time ranges if specified
-    if (filters.timeRanges && filters.timeRanges.length > 0) {
+    // Filter by time ranges if specified (same as GET endpoint)
+    if (filters.timeRanges) {
       let selectedTimeRanges;
       if (Array.isArray(filters.timeRanges)) {
-        selectedTimeRanges = filters.timeRanges;
-      } else {
-        selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim());
+        selectedTimeRanges = filters.timeRanges.filter(tr => tr && tr.trim().length > 0);
+      } else if (typeof filters.timeRanges === 'string' && filters.timeRanges.trim().length > 0) {
+        selectedTimeRanges = filters.timeRanges.split(',').map(tr => tr.trim()).filter(tr => tr.length > 0);
       }
-      const beforeTimeFilter = slotsToUpdate.length;
-      slotsToUpdate = slotsToUpdate.filter(slot => {
-        // Check if slot's start time falls within any of the selected time ranges
-        return selectedTimeRanges.some(timeRange => {
-          const [rangeStart, rangeEnd] = timeRange.split('-');
-          return slot.startTime >= rangeStart && slot.startTime < rangeEnd;
+      
+      if (selectedTimeRanges && selectedTimeRanges.length > 0) {
+        const beforeTimeFilter = slotsToUpdate.length;
+        slotsToUpdate = slotsToUpdate.filter(slot => {
+          if (!slot.startTime) return false;
+          // Check if slot's start time falls within any of the selected time ranges
+          return selectedTimeRanges.some(timeRange => {
+            const [rangeStart, rangeEnd] = timeRange.split('-');
+            if (!rangeStart || !rangeEnd) return false;
+            return slot.startTime >= rangeStart.trim() && slot.startTime < rangeEnd.trim();
+          });
         });
-      });
-      console.log(`Bulk update: After timeRanges filtering: ${slotsToUpdate.length} slots (was ${beforeTimeFilter})`);
+        console.log(`Bulk update: After timeRanges filtering: ${slotsToUpdate.length} slots (was ${beforeTimeFilter}), timeRanges: ${selectedTimeRanges}`);
+      }
     }
+    
+    console.log(`Bulk update: Final slots count after all filters: ${slotsToUpdate.length}`);
 
     // Check if we have slots to update
     if (slotsToUpdate.length === 0) {
