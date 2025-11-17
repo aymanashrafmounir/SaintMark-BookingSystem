@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import {
   Calendar,
@@ -413,6 +413,25 @@ function UserPortal() {
     return new Date().toISOString().split('T')[0];
   };
 
+  const slotStats = useMemo(() => {
+    if (!Array.isArray(slots) || slots.length === 0) {
+      return {
+        total: 0,
+        booked: 0,
+        available: 0
+      };
+    }
+
+    const booked = slots.filter(slot => slot.status === 'booked').length;
+    const total = slots.length;
+
+    return {
+      total,
+      booked,
+      available: total - booked
+    };
+  }, [slots]);
+
   const isValidDateValue = (value) => {
     if (!value || typeof value !== 'string') return false;
     const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -639,6 +658,16 @@ function UserPortal() {
                 </h2>
                 <span className="slot-count">
                   {loadingSlots && slotsPagination.total === 0 ? 'جاري التحميل...' : `${slotsPagination.total} ${showAvailableOnly ? 'متاح' : 'إجمالي'}`}
+                </span>
+                <span 
+                  className="slot-count" 
+                  style={{
+                    backgroundColor: '#fbbc05',
+                    color: '#3c4043',
+                    borderColor: '#fbbc05'
+                  }}
+                >
+                  {`${slotStats.booked} محجوز`}
                 </span>
               </div>
 
