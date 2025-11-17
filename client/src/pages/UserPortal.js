@@ -400,6 +400,15 @@ function UserPortal() {
     return new Date().toISOString().split('T')[0];
   };
 
+  const handleDateChange = (value) => {
+    if (!value) {
+      toast.error('لا يمكن ترك التاريخ فارغاً، تم اختيار تاريخ اليوم تلقائياً');
+      setSelectedDate(getTodayDate());
+      return;
+    }
+    setSelectedDate(value);
+  };
+
   if (loading) {
     return (
       <div className="user-portal">
@@ -537,9 +546,10 @@ function UserPortal() {
                 <input
                   type="date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => handleDateChange(e.target.value)}
                   min={getTodayDate()}
                   className="date-input"
+                  required
                 />
               </div>
 
