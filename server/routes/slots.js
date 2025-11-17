@@ -326,29 +326,74 @@ router.get('/public', async (req, res) => {
     if (sanitizedStartTime) filter.startTime = sanitizedStartTime;
     if (sanitizedEndTime) filter.endTime = sanitizedEndTime;
 
-    // Calculate pagination
+    // Build date filter but delay applying it until after querying (to match admin logic)
+    let dateFilter = null;
+    if (isValidDateString(sanitizedDateRangeStart) && isValidDateString(sanitizedDateRangeEnd)) {
+      const startDate = getStartOfDayUTC(sanitizedDateRangeStart);
+      const endDateNextDay = getStartOfNextDayUTC(sanitizedDateRangeEnd);
+      if (startDate && endDateNextDay) {
+        dateFilter = { $gte: startDate, $lt: endDateNextDay };
+      }
+    } else if (isValidDateString(sanitizedDateRangeStart)) {
+      const startDate = getStartOfDayUTC(sanitizedDateRangeStart);
+      if (startDate) {
+        dateFilter = { $gte: startDate };
+      }
+    } else if (isValidDateString(sanitizedDateRangeEnd)) {
+      const endDateNextDay = getStartOfNextDayUTC(sanitizedDateRangeEnd);
+      if (endDateNextDay) {
+        dateFilter = { $lt: endDateNextDay };
+      }
+    } else if (isValidDateString(sanitizedDate)) {
+      const startOfDay = getStartOfDayUTC(sanitizedDate);
+      const startOfNextDay = getStartOfNextDayUTC(sanitizedDate);
+      if (startOfDay && startOfNextDay) {
+        dateFilter = { $gte: startOfDay, $lt: startOfNextDay };
+      }
+    }
+
+    // Calculate pagination (will apply after in-memory filtering)
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Execute query with pagination
-    const slots = await Slot.find(filter)
+    const queryWithoutDate = { ...filter };
+    delete queryWithoutDate.date;
+
+    let slots = await Slot.find(queryWithoutDate)
       .populate('roomId', 'name isEnabled')
       .sort({ date: 1, startTime: 1 })
-      .skip(skip)
-      .limit(limitNumber)
       .lean();
 
-    // Get total count for pagination
-    const totalCount = await Slot.countDocuments(filter);
+    if (dateFilter) {
+      slots = slots.filter(slot => {
+        if (!slot.date) return false;
+        const slotDate = slot.date instanceof Date ? slot.date : new Date(slot.date);
+        if (Number.isNaN(slotDate.getTime())) {
+          return false;
+        }
+
+        if (dateFilter.$gte && dateFilter.$lt) {
+          return slotDate >= dateFilter.$gte && slotDate < dateFilter.$lt;
+        } else if (dateFilter.$gte) {
+          return slotDate >= dateFilter.$gte;
+        } else if (dateFilter.$lt) {
+          return slotDate < dateFilter.$lt;
+        }
+        return true;
+      });
+    }
+
+    const totalCount = slots.length;
+    const paginatedSlots = slots.slice(skip, skip + limitNumber);
     
     res.json({
-      slots,
+      slots: paginatedSlots,
       pagination: {
         total: totalCount,
         page: pageNumber,
         limit: limitNumber,
-        totalPages: Math.ceil(totalCount / limitNumber)
+        totalPages: Math.ceil(totalCount / limitNumber) || 0
       }
     });
   } catch (error) {
