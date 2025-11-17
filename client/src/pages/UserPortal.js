@@ -58,6 +58,10 @@ function UserPortal() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [lastFetchedMeta, setLastFetchedMeta] = useState({
+    totalFetched: 0,
+    totalAvailable: 0
+  });
   
   // Show available places only toggle (default enabled)
   const [showAvailableOnly, setShowAvailableOnly] = useState(true);
@@ -136,12 +140,19 @@ function UserPortal() {
       }
       
       const response = await slotAPI.getPublic(params);
-      let newSlots = response.data.slots;
-      
-      // Filter out booked slots if showAvailableOnly is enabled
-      if (showAvailableOnly) {
-        newSlots = newSlots.filter(slot => slot.status === 'available');
+      const fetchedSlots = response.data.slots || [];
+      const availableSlots = fetchedSlots.filter(slot => slot.status === 'available');
+
+      if (showAvailableOnly && fetchedSlots.length > 0 && availableSlots.length === 0 && !append) {
+        toast.info('كل الأوقات في هذا التاريخ محجوزة. أوقف فلترة "المتاحة فقط" لعرضها.');
       }
+
+      setLastFetchedMeta({
+        totalFetched: fetchedSlots.length,
+        totalAvailable: availableSlots.length
+      });
+
+      let newSlots = showAvailableOnly ? availableSlots : fetchedSlots;
       
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
       setSlotsPagination(response.data.pagination);
@@ -172,12 +183,19 @@ function UserPortal() {
       }
       
       const response = await slotAPI.getPublic(params);
-      let newSlots = response.data.slots;
-      
-      // Filter out booked slots if showAvailableOnly is enabled
-      if (showAvailableOnly) {
-        newSlots = newSlots.filter(slot => slot.status === 'available');
+      const fetchedSlots = response.data.slots || [];
+      const availableSlots = fetchedSlots.filter(slot => slot.status === 'available');
+
+      if (showAvailableOnly && fetchedSlots.length > 0 && availableSlots.length === 0 && !append) {
+        toast.info('كل الأوقات في هذا التاريخ محجوزة. أوقف فلترة "المتاحة فقط" لعرضها.');
       }
+
+      setLastFetchedMeta({
+        totalFetched: fetchedSlots.length,
+        totalAvailable: availableSlots.length
+      });
+
+      let newSlots = showAvailableOnly ? availableSlots : fetchedSlots;
       
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
       setSlotsPagination(response.data.pagination);
@@ -216,12 +234,19 @@ function UserPortal() {
       }
       
       const response = await slotAPI.getPublic(params);
-      let newSlots = response.data.slots;
-      
-      // Filter out booked slots if showAvailableOnly is enabled
-      if (showAvailableOnly) {
-        newSlots = newSlots.filter(slot => slot.status === 'available');
+      const fetchedSlots = response.data.slots || [];
+      const availableSlots = fetchedSlots.filter(slot => slot.status === 'available');
+
+      if (showAvailableOnly && fetchedSlots.length > 0 && availableSlots.length === 0 && !append) {
+        toast.info('كل الأوقات في هذا التاريخ محجوزة. أوقف فلترة "المتاحة فقط" لعرضها.');
       }
+
+      setLastFetchedMeta({
+        totalFetched: fetchedSlots.length,
+        totalAvailable: availableSlots.length
+      });
+
+      let newSlots = showAvailableOnly ? availableSlots : fetchedSlots;
       
       setSlots(prevSlots => append ? [...prevSlots, ...newSlots] : newSlots);
       setSlotsPagination(response.data.pagination);
@@ -416,8 +441,7 @@ function UserPortal() {
 
   const handleDateChange = (value) => {
     if (!value) {
-      toast.error('لا يمكن ترك التاريخ فارغاً، تم اختيار تاريخ اليوم تلقائياً');
-      setSelectedDate(getTodayDate());
+      toast.error('لا يمكن ترك التاريخ فارغاً، يرجى اختيار تاريخ من التقويم');
       return;
     }
 
@@ -638,7 +662,29 @@ function UserPortal() {
                 <div className="no-slots">
                   <Calendar size={48} />
                   <p>{showAvailableOnly ? 'لا توجد أوقات متاحة لهذا التاريخ' : 'لا توجد أوقات لهذا التاريخ'}</p>
-                  <small>{showAvailableOnly ? 'جرب اختيار تاريخ آخر أو إلغاء فلترة الأماكن المتاحة' : 'جرب اختيار تاريخ آخر'}</small>
+                  <small>
+                    {showAvailableOnly
+                      ? lastFetchedMeta.totalFetched > 0
+                        ? 'كل الأوقات في هذا اليوم محجوزة. يمكنك عرضها بالضغط على الزر أدناه.'
+                        : 'جرب اختيار تاريخ آخر أو إلغاء فلترة الأماكن المتاحة'
+                      : 'جرب اختيار تاريخ آخر'}
+                  </small>
+                  {showAvailableOnly && lastFetchedMeta.totalFetched > 0 && (
+                    <button
+                      style={{
+                        marginTop: '1rem',
+                        background: '#1a73e8',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '0.6rem 1.2rem',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setShowAvailableOnly(false)}
+                    >
+                      عرض كل الأوقات المحجوزة أيضاً
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
