@@ -272,7 +272,11 @@ function UserPortal() {
 
   // Load initial slots (first page only)
   useEffect(() => {
-    if (selectedDate && rooms.length > 0) {
+    if (!selectedDate || !isValidDateValue(selectedDate)) {
+      return;
+    }
+
+    if (rooms.length > 0) {
       setCurrentSlotsPage(1);
       setSlots([]); // Clear previous slots
       // Reset pagination total immediately when filters change
@@ -400,12 +404,28 @@ function UserPortal() {
     return new Date().toISOString().split('T')[0];
   };
 
+  const isValidDateValue = (value) => {
+    if (!value || typeof value !== 'string') return false;
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!datePattern.test(value)) {
+      return false;
+    }
+    const parsed = new Date(value);
+    return !isNaN(parsed.getTime());
+  };
+
   const handleDateChange = (value) => {
     if (!value) {
       toast.error('لا يمكن ترك التاريخ فارغاً، تم اختيار تاريخ اليوم تلقائياً');
       setSelectedDate(getTodayDate());
       return;
     }
+
+    if (!isValidDateValue(value)) {
+      toast.error('صيغة التاريخ غير صحيحة، يرجى اختيار التاريخ من التقويم');
+      return;
+    }
+
     setSelectedDate(value);
   };
 
