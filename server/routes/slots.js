@@ -38,6 +38,10 @@ const serviceProviderDetailSuffix = (serviceName, providerName) => {
   return summary ? ` | ${summary}` : '';
 };
 
+const isValidDateString = (dateStr) => {
+  return typeof dateStr === 'string' && dateStr.trim().length > 0;
+};
+
 const formatSlotAssignmentsSummary = (slots = []) => {
   const serviceNames = new Set();
   const providerNames = new Set();
@@ -261,6 +265,7 @@ router.get('/public', async (req, res) => {
       roomIds, // comma-separated room IDs for group filtering
       dateRangeStart,
       dateRangeEnd,
+      date,
       startTime,
       endTime
     } = req.query;
@@ -268,36 +273,58 @@ router.get('/public', async (req, res) => {
     // Build filter query
     const filter = {};
     
-    if (roomIds) {
+    const sanitizeString = (value) => {
+      if (typeof value === 'string') {
+        return value.trim();
+      }
+      return value;
+    };
+
+    const sanitizedRoomIds = sanitizeString(roomIds);
+    const sanitizedRoomId = sanitizeString(roomId);
+
+    if (sanitizedRoomIds) {
       // Handle multiple room IDs (for group filtering)
-      const roomIdArray = roomIds.split(',').map(id => id.trim());
+      const roomIdArray = sanitizedRoomIds.split(',').map(id => id.trim());
       filter.roomId = { $in: roomIdArray };
-    } else if (roomId) {
-      filter.roomId = roomId;
+    } else if (sanitizedRoomId) {
+      filter.roomId = sanitizedRoomId;
     }
     
     // Date range filtering
-    if (dateRangeStart && dateRangeEnd) {
-      const startDate = getStartOfDayUTC(dateRangeStart);
-      const endDateNextDay = getStartOfNextDayUTC(dateRangeEnd);
+    const sanitizedDateRangeStart = sanitizeString(dateRangeStart);
+    const sanitizedDateRangeEnd = sanitizeString(dateRangeEnd);
+    const sanitizedDate = sanitizeString(date);
+
+    if (isValidDateString(sanitizedDateRangeStart) && isValidDateString(sanitizedDateRangeEnd)) {
+      const startDate = getStartOfDayUTC(sanitizedDateRangeStart);
+      const endDateNextDay = getStartOfNextDayUTC(sanitizedDateRangeEnd);
       if (startDate && endDateNextDay) {
         filter.date = { $gte: startDate, $lt: endDateNextDay };
       }
-    } else if (dateRangeStart) {
-      const startDate = getStartOfDayUTC(dateRangeStart);
+    } else if (isValidDateString(sanitizedDateRangeStart)) {
+      const startDate = getStartOfDayUTC(sanitizedDateRangeStart);
       if (startDate) {
         filter.date = { $gte: startDate };
       }
-    } else if (dateRangeEnd) {
-      const endDateNextDay = getStartOfNextDayUTC(dateRangeEnd);
+    } else if (isValidDateString(sanitizedDateRangeEnd)) {
+      const endDateNextDay = getStartOfNextDayUTC(sanitizedDateRangeEnd);
       if (endDateNextDay) {
         filter.date = { $lt: endDateNextDay };
+      }
+    } else if (isValidDateString(sanitizedDate)) {
+      const startOfDay = getStartOfDayUTC(sanitizedDate);
+      const startOfNextDay = getStartOfNextDayUTC(sanitizedDate);
+      if (startOfDay && startOfNextDay) {
+        filter.date = { $gte: startOfDay, $lt: startOfNextDay };
       }
     }
     
     // Time filtering
-    if (startTime) filter.startTime = startTime;
-    if (endTime) filter.endTime = endTime;
+    const sanitizedStartTime = sanitizeString(startTime);
+    const sanitizedEndTime = sanitizeString(endTime);
+    if (sanitizedStartTime) filter.startTime = sanitizedStartTime;
+    if (sanitizedEndTime) filter.endTime = sanitizedEndTime;
 
     // Calculate pagination
     const pageNumber = parseInt(page);
