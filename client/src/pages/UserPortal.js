@@ -129,8 +129,6 @@ function UserPortal() {
 
       if (sanitizedDate) {
         params.date = sanitizedDate;
-        params.dateRangeStart = sanitizedDate;
-        params.dateRangeEnd = sanitizedDate;
       }
       
       // Only add time filters if a specific time slot is selected
@@ -170,8 +168,6 @@ function UserPortal() {
 
       if (sanitizedDate) {
         params.date = sanitizedDate;
-        params.dateRangeStart = sanitizedDate;
-        params.dateRangeEnd = sanitizedDate;
       }
       
       // Only add time filters if a specific time slot is selected
@@ -219,8 +215,6 @@ function UserPortal() {
 
       if (sanitizedDate) {
         params.date = sanitizedDate;
-        params.dateRangeStart = sanitizedDate;
-        params.dateRangeEnd = sanitizedDate;
       }
       
       // Only add time filters if a specific time slot is selected
