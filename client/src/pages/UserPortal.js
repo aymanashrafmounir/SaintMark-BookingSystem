@@ -761,8 +761,20 @@ function UserPortal() {
                 </div>
               </div>
 
-              <button className="btn-refresh" onClick={handleRefresh}>
-                <RefreshCw size={18} /> تحديث
+              <button
+                className="btn-refresh"
+                onClick={handleRefresh}
+                disabled={loadingSlots}
+              >
+                {loadingSlots ? (
+                  <>
+                    <RefreshCw size={18} /> جاري التحديث...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={18} /> تحديث
+                  </>
+                )}
               </button>
             </div>
 
