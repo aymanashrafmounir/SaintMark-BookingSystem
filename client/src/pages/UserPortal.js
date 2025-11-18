@@ -402,7 +402,7 @@ function UserPortal() {
         }, 300);
       }
     });
-  }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
+  }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot, currentSlotsPage]);
 
   // Load initial slots (first page only)
   useEffect(() => {
