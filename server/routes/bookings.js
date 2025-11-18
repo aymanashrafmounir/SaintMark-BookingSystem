@@ -119,7 +119,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'رقم الهاتف غير صحيح! يجب أن يبدأ بـ 010, 011, 012, أو 015 ويكون 11 رقم' });
     }
 
-    // Check if slot exists
+    // Check if slot exists and is available
     const originalSlot = await Slot.findById(slotId);
     if (!originalSlot) {
       return res.status(404).json({ error: 'Slot not found' });
@@ -127,6 +127,34 @@ router.post('/', async (req, res) => {
 
     if (originalSlot.status === 'booked') {
       return res.status(400).json({ error: 'This slot is already booked' });
+    }
+
+    // For recurring bookings, check if any future slots are already booked
+    if (isRecurring && endDate) {
+      const startDateObj = new Date(date);
+      const endDateObj = new Date(endDate);
+      const dayOfWeek = startDateObj.getDay();
+      
+      const recurringDates = generateWeeklyDates(startDateObj, endDateObj, dayOfWeek);
+      
+      for (const recurringDate of recurringDates) {
+        const dateString = recurringDate.toISOString().split('T')[0];
+        const startOfDay = getStartOfDayUTC(dateString);
+        const startOfNextDay = getStartOfNextDayUTC(dateString);
+
+        const existingSlot = await Slot.findOne({
+          roomId,
+          startTime,
+          endTime,
+          date: { $gte: startOfDay, $lt: startOfNextDay }
+        });
+
+        if (existingSlot && existingSlot.status === 'booked') {
+          return res.status(400).json({ 
+            error: `Slot on ${dateString} is already booked by ${existingSlot.bookedBy || 'another user'}` 
+          });
+        }
+      }
     }
 
     // Handle recurring bookings - create ONE unified booking request
@@ -259,27 +287,36 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
           continue;
         }
 
-        // Update existing slot status and details only
-        slot.status = 'booked';
-        slot.bookedBy = booking.userName;
-        slot.serviceName = booking.serviceName;
-        slot.providerName = booking.providerName;
-        
-        try {
-          await slot.save();
-          console.log(`Updated slot ${slot._id} for date ${dateString} - Status: ${slot.status}, Service: ${slot.serviceName}, Provider: ${slot.providerName}`);
-        } catch (error) {
-          console.error(`Error saving slot ${slot._id}:`, error);
+        // Use findOneAndUpdate for atomic operation to prevent race conditions
+        const updatedSlot = await Slot.findOneAndUpdate(
+          { 
+            _id: slot._id, 
+            status: { $ne: 'booked' } // Only update if not already booked
+          },
+          {
+            $set: {
+              status: 'booked',
+              bookedBy: booking.userName,
+              serviceName: booking.serviceName,
+              providerName: booking.providerName
+            }
+          },
+          { new: true } // Return the updated document
+        );
+
+        if (!updatedSlot) {
+          console.log(`Slot ${slot._id} was already booked by another process, skipping...`);
           continue;
         }
+
+        console.log(`Atomically updated slot ${updatedSlot._id} for date ${dateString} - Status: ${updatedSlot.status}, Service: ${updatedSlot.serviceName}, Provider: ${updatedSlot.providerName}`);
         
-        // Verify the slot was saved correctly by reloading from database
-        const savedSlot = await Slot.findById(slot._id);
-        if (savedSlot && savedSlot.status === 'booked') {
-          console.log(`Verified slot ${savedSlot._id} is booked - Service: ${savedSlot.serviceName}, Provider: ${savedSlot.providerName}`);
-          updatedSlots.push({ slot: savedSlot, slotBefore });
+        // Verify the slot was saved correctly
+        if (updatedSlot.status === 'booked') {
+          console.log(`Verified slot ${updatedSlot._id} is booked - Service: ${updatedSlot.serviceName}, Provider: ${updatedSlot.providerName}`);
+          updatedSlots.push({ slot: updatedSlot, slotBefore });
         } else {
-          console.error(`Failed to verify slot ${slot._id} update! Expected booked, got: ${savedSlot?.status || 'null'}`);
+          console.error(`Failed to verify slot ${updatedSlot._id} update! Expected booked, got: ${updatedSlot.status}`);
         }
 
         // Create individual booking for this date

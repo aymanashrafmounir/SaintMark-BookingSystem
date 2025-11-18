@@ -435,6 +435,14 @@ function AdminDashboard({ setIsAuthenticated }) {
       }
     });
 
+    // Listen for slot updates (for recurring bookings)
+    socketService.onSlotUpdated(() => {
+      // Reload slots to show updated status
+      if (activeTab === 'slots') {
+        loadSlots();
+      }
+    });
+
     // Listen for authentication expiration
     const handleAuthExpired = () => {
       toast.error('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.');
@@ -447,6 +455,7 @@ function AdminDashboard({ setIsAuthenticated }) {
       socketService.removeListener('new-booking-request');
       window.removeEventListener('authExpired', handleAuthExpired);
       socketService.removeListener('booking-approved');
+      socketService.removeListener('slot-updated');
     };
   }, [loadRooms, loadRoomGroups, loadBookings, loadSlots, activeTab, setIsAuthenticated]);
 
