@@ -285,15 +285,41 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
       for (const recurringDate of recurringDates) {
         const dateString = recurringDate.toISOString().split('T')[0];
         const startOfDay = getStartOfDayUTC(dateString);
-        const startOfNextDay = getStartOfNextDayUTC(dateString);
 
-        // Find existing slot only (DO NOT CREATE)
-        const slot = await Slot.findOne({
-          roomId: booking.roomId,
-          startTime: booking.startTime,
-          endTime: booking.endTime,
-          date: { $gte: startOfDay, $lt: startOfNextDay }
-        });
+        // Try to use the original booking slot for the first date if it matches the same calendar day
+        let slot = null;
+        if (booking.slotId) {
+          try {
+            const originalSlot = await Slot.findById(booking.slotId);
+            if (originalSlot && originalSlot.date) {
+              const originalSlotDate = originalSlot.date instanceof Date
+                ? originalSlot.date
+                : new Date(originalSlot.date);
+              const originalSlotDateStr = originalSlotDate.toISOString().split('T')[0];
+              if (originalSlotDateStr === dateString) {
+                slot = originalSlot;
+              }
+            }
+          } catch (err) {
+            console.error('Error loading original slot for recurring approval:', err);
+          }
+        }
+
+        // If not the original date, or original slot didn't match, find matching slot by room/time and calendar date
+        if (!slot) {
+          const candidateSlots = await Slot.find({
+            roomId: booking.roomId,
+            startTime: booking.startTime,
+            endTime: booking.endTime
+          });
+
+          slot = candidateSlots.find(s => {
+            if (!s.date) return false;
+            const sDate = s.date instanceof Date ? s.date : new Date(s.date);
+            const sDateStr = sDate.toISOString().split('T')[0];
+            return sDateStr === dateString;
+          }) || null;
+        }
 
         // Skip if slot doesn't exist - we only update existing slots
         if (!slot) {
@@ -333,7 +359,8 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
           console.error(`Failed to verify slot ${slot._id} update! Expected booked, got: ${savedSlot?.status || 'null'}`);
         }
 
-        // Create individual booking for this date
+        // Create individual booking for this date (temporarily disabled for debugging slot issue)
+        /*
         const individualBooking = new Booking({
           userName: booking.userName,
           slotId: slot._id,
@@ -349,6 +376,7 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
         });
         await individualBooking.save();
         createdBookings.push(individualBooking);
+        */
       }
 
       // Update the recurring booking status to approved
