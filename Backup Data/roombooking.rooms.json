@@ -1,0 +1,420 @@
+[{
+  "_id": {
+    "$oid": "68e68c2c7b0820d7b72c0488"
+  },
+  "name": "غرفة 501",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.532Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c2f7b0820d7b72c048b"
+  },
+  "name": "غرفة 502",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.540Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c327b0820d7b72c048e"
+  },
+  "name": "غرفة 503",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.547Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c367b0820d7b72c0491"
+  },
+  "name": "غرفة 504",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.554Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c397b0820d7b72c0494"
+  },
+  "name": "غرفة 505",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.563Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c3e7b0820d7b72c0497"
+  },
+  "name": "غرفة 506",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.573Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c437b0820d7b72c049a"
+  },
+  "name": "غرفة 507",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.579Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c497b0820d7b72c049d"
+  },
+  "name": "غرفة 508",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.585Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c4c7b0820d7b72c04a0"
+  },
+  "name": "غرفة 509",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.591Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c697b0820d7b72c04b3"
+  },
+  "name": "غرفة 401",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.602Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c6b7b0820d7b72c04b6"
+  },
+  "name": "غرفة 402",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.609Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c6e7b0820d7b72c04b9"
+  },
+  "name": "غرفة 403",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.619Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c717b0820d7b72c04bc"
+  },
+  "name": "غرفة 404",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.626Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c787b0820d7b72c04bf"
+  },
+  "name": "غرفة 510",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.632Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c7d7b0820d7b72c04c2"
+  },
+  "name": "غرفة 405",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.639Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c817b0820d7b72c04c5"
+  },
+  "name": "غرفة 406",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.645Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c847b0820d7b72c04c8"
+  },
+  "name": "غرفة 407",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.651Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68c927b0820d7b72c04d3"
+  },
+  "name": "غرفة الموسيقي",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.657Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68cac7b0820d7b72c04e2"
+  },
+  "name": "منارة رجال",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.663Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68cb67b0820d7b72c04e5"
+  },
+  "name": "منارة سيدات",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.670Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68cf87b0820d7b72c04eb"
+  },
+  "name": "قاعة المناسبات",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.682Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68d0c7b0820d7b72c04ee"
+  },
+  "name": "السطح",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.688Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e68d207b0820d7b72c04f1"
+  },
+  "name": "غرفة الفيديو",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.695Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e6978b2690676dce814283"
+  },
+  "name": "خلف المكتبة 1",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.701Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e697ab2690676dce814286"
+  },
+  "name": "خلف المكتبة 2",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.707Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e697b42690676dce814289"
+  },
+  "name": "خلف المكتبة 3",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.714Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e697ba2690676dce81428c"
+  },
+  "name": "خلف المكتبة 4",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.728Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e697c22690676dce81428f"
+  },
+  "name": "خلف المكتبة 5",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.740Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68e697d32690676dce814292"
+  },
+  "name": "خلف المكتبة 6",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-10T13:01:39.748Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68f15f063313e1e4abb20720"
+  },
+  "name": "غرفة 511",
+  "isEnabled": true,
+  "createdAt": {
+    "$date": "2025-10-16T21:11:33.640Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-16T21:14:44.866Z"
+  },
+  "__v": 0
+}]
