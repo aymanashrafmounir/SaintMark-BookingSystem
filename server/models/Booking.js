@@ -41,11 +41,13 @@ const bookingSchema = new mongoose.Schema({
   },
   phoneNumber: {
     type: String,
-    required: true,
+    required: false,
     trim: true,
+    default: '',
     validate: {
       validator: function(v) {
-        // Must be 11 digits and start with 010, 011, 012, or 015
+        // If provided, must be 11 digits and start with 010, 011, 012, or 015
+        if (!v || v.trim() === '') return true; // Optional
         return /^(010|011|012|015)\d{8}$/.test(v);
       },
       message: props => `${props.value} ليس رقم هاتف صحيح! يجب أن يبدأ بـ 010, 011, 012, أو 015 ويكون 11 رقم`
@@ -53,7 +55,34 @@ const bookingSchema = new mongoose.Schema({
   },
   date: {
     type: Date,
-    required: true
+    required: function() {
+      return !this.isRecurring;
+    }
+  },
+  // Recurring booking fields
+  isRecurring: {
+    type: Boolean,
+    default: false
+  },
+  startDate: {
+    type: Date,
+    required: function() {
+      return this.isRecurring;
+    }
+  },
+  endDate: {
+    type: Date,
+    required: function() {
+      return this.isRecurring;
+    }
+  },
+  recurringDayOfWeek: {
+    type: Number,
+    required: function() {
+      return this.isRecurring;
+    },
+    min: 0,
+    max: 6 // 0 = Sunday, 6 = Saturday
   },
   createdAt: {
     type: Date,

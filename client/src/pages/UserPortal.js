@@ -346,13 +346,8 @@ function UserPortal() {
       toast.error('يرجى إدخال اسم الخدمة');
       return;
     }
-    if (!phoneNumber.trim()) {
-      toast.error('يرجى إدخال رقم الهاتف');
-      return;
-    }
-    
-    // Validate phone number
-    if (!/^(010|011|012|015)\d{8}$/.test(phoneNumber.trim())) {
+    // Validate phone number if provided (optional)
+    if (phoneNumber.trim() && !/^(010|011|012|015)\d{8}$/.test(phoneNumber.trim())) {
       toast.error('رقم الهاتف غير صحيح! يجب أن يبدأ بـ 010, 011, 012, أو 015 ويكون 11 رقم');
       return;
     }
@@ -389,8 +384,8 @@ function UserPortal() {
         endDate: isRecurring ? endDate : undefined
       });
 
-      if (isRecurring && response.data?.count) {
-        toast.success(`تم إرسال ${response.data.count} طلب حجز لتثبيت المواعيد! في انتظار موافقة المشرف...`);
+      if (isRecurring) {
+        toast.success('تم إرسال طلب تثبيت الموعد! في انتظار موافقة المشرف...');
       } else {
         toast.success('تم إرسال طلب الحجز! في انتظار موافقة المشرف...');
       }
@@ -934,7 +929,7 @@ function UserPortal() {
 
               <div className="form-group">
                 <label>
-                  📱 رقم الهاتف
+                  📱 رقم الهاتف <span style={{ color: '#6c757d', fontSize: '0.875rem', fontWeight: 'normal' }}>(اختياري)</span>
                 </label>
                 <input
                   type="tel"
@@ -943,10 +938,9 @@ function UserPortal() {
                   placeholder="01xxxxxxxxx (يبدأ بـ 010, 011, 012, أو 015)"
                   pattern="^(010|011|012|015)\d{8}$"
                   maxLength="11"
-                  required
                 />
                 <small style={{ color: '#6c757d', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
-                  يجب أن يكون 11 رقم ويبدأ بـ 010, 011, 012, أو 015
+                  إذا قمت بإدخال رقم الهاتف، يجب أن يكون 11 رقم ويبدأ بـ 010, 011, 012, أو 015
                 </small>
               </div>
 

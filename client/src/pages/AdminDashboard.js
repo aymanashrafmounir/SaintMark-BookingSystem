@@ -2469,7 +2469,17 @@ function AdminDashboard({ setIsAuthenticated }) {
                       </div>
                       <div className="booking-details">
                         <p><strong>المكان:</strong> {booking.roomId?.name}</p>
-                        <p><strong>التاريخ:</strong> {new Date(booking.date).toLocaleDateString('ar-EG')}</p>
+                        {booking.isRecurring ? (
+                          <>
+                            <p><strong>🔄 نوع الحجز:</strong> تثبيت معاد أسبوعي</p>
+                            <p><strong>📅 الفترة:</strong> من {new Date(booking.startDate).toLocaleDateString('ar-EG')} إلى {new Date(booking.endDate).toLocaleDateString('ar-EG')}</p>
+                            <p><strong>📆 يوم الأسبوع:</strong> {
+                              ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][booking.recurringDayOfWeek]
+                            }</p>
+                          </>
+                        ) : (
+                          <p><strong>التاريخ:</strong> {new Date(booking.date).toLocaleDateString('ar-EG')}</p>
+                        )}
                         <p><strong>الوقت:</strong> {formatTimeRange(booking.startTime, booking.endTime)}</p>
                         <p><strong>الخدمة:</strong> {booking.serviceName}</p>
                         <p><strong>الخادم:</strong> {booking.providerName}</p>
@@ -2536,7 +2546,20 @@ function AdminDashboard({ setIsAuthenticated }) {
                     </div>
                     <div className="booking-details">
                       <p><strong>المكان:</strong> {booking.roomId?.name}</p>
-                      <p><strong>التاريخ:</strong> {new Date(booking.date).toLocaleDateString('ar-EG')}</p>
+                      {booking.isRecurring ? (
+                        <>
+                          <p><strong>🔄 نوع الحجز:</strong> تثبيت معاد أسبوعي</p>
+                          <p><strong>📅 الفترة:</strong> من {new Date(booking.startDate).toLocaleDateString('ar-EG')} إلى {new Date(booking.endDate).toLocaleDateString('ar-EG')}</p>
+                          <p><strong>📆 يوم الأسبوع:</strong> {
+                            ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][booking.recurringDayOfWeek]
+                          }</p>
+                          {booking.createdBookings && (
+                            <p><strong>✅ تم إنشاء:</strong> {booking.createdBookings} حجز</p>
+                          )}
+                        </>
+                      ) : (
+                        <p><strong>التاريخ:</strong> {new Date(booking.date).toLocaleDateString('ar-EG')}</p>
+                      )}
                       <p><strong>الوقت:</strong> {formatTimeRange(booking.startTime, booking.endTime)}</p>
                       <p><strong>📱 رقم الهاتف:</strong> {booking.phoneNumber || 'غير متوفر'}</p>
                     </div>

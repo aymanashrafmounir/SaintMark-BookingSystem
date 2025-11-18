@@ -64,16 +64,21 @@ router.get('/pending', authMiddleware, async (req, res) => {
 });
 
 // Helper function to generate all dates with the same weekday between start and end date
-const generateWeeklyDates = (startDate, endDate) => {
+const generateWeeklyDates = (startDate, endDate, dayOfWeek = null) => {
   const dates = [];
   const start = new Date(startDate);
   const end = new Date(endDate);
   
   // Get the day of week (0 = Sunday, 1 = Monday, etc.)
-  const targetDayOfWeek = start.getDay();
+  const targetDayOfWeek = dayOfWeek !== null ? dayOfWeek : start.getDay();
   
-  // Set to the first occurrence of the target day of week
+  // Find the first occurrence of the target day of week
   let currentDate = new Date(start);
+  const daysUntilTarget = (targetDayOfWeek - currentDate.getDay() + 7) % 7;
+  
+  if (daysUntilTarget > 0) {
+    currentDate.setDate(currentDate.getDate() + daysUntilTarget);
+  }
   
   // Generate all dates with the same day of week
   while (currentDate <= end) {
@@ -105,16 +110,16 @@ router.post('/', async (req, res) => {
   try {
     const { userName, slotId, roomId, startTime, endTime, serviceName, providerName, phoneNumber, date, isRecurring, endDate } = req.body;
 
-    if (!userName || !slotId || !roomId || !startTime || !endTime || !serviceName || !providerName || !phoneNumber || !date) {
-      return res.status(400).json({ error: 'All fields are required' });
+    if (!userName || !slotId || !roomId || !startTime || !endTime || !serviceName || !providerName) {
+      return res.status(400).json({ error: 'الحقول المطلوبة: اسم الخادم، المكان، الوقت، اسم الخدمة' });
     }
 
-    // Validate phone number format
-    if (!/^(010|011|012|015)\d{8}$/.test(phoneNumber)) {
+    // Validate phone number format if provided
+    if (phoneNumber && phoneNumber.trim() !== '' && !/^(010|011|012|015)\d{8}$/.test(phoneNumber.trim())) {
       return res.status(400).json({ error: 'رقم الهاتف غير صحيح! يجب أن يبدأ بـ 010, 011, 012, أو 015 ويكون 11 رقم' });
     }
 
-    // Check if slot exists and is available
+    // Check if slot exists
     const originalSlot = await Slot.findById(slotId);
     if (!originalSlot) {
       return res.status(404).json({ error: 'Slot not found' });
@@ -124,7 +129,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'This slot is already booked' });
     }
 
-    // Handle recurring bookings
+    // Handle recurring bookings - create ONE unified booking request
     if (isRecurring && endDate) {
       const startDateObj = new Date(date);
       const endDateObj = new Date(endDate);
@@ -133,86 +138,43 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
       }
 
-      // Generate all dates with the same weekday
-      const recurringDates = generateWeeklyDates(startDateObj, endDateObj);
-      
-      if (recurringDates.length === 0) {
-        return res.status(400).json({ error: 'لا توجد تواريخ متاحة في الفترة المحددة' });
-      }
+      const dayOfWeek = startDateObj.getDay();
 
-      const bookings = [];
-      const io = req.app.get('io');
-
-      // Process each date
-      for (const recurringDate of recurringDates) {
-        const dateString = recurringDate.toISOString().split('T')[0];
-        const startOfDay = getStartOfDayUTC(dateString);
-        const startOfNextDay = getStartOfNextDayUTC(dateString);
-
-        // Find or create slot for this date
-        let slot = await Slot.findOne({
-          roomId,
-          startTime,
-          endTime,
-          date: { $gte: startOfDay, $lt: startOfNextDay }
-        });
-
-        if (!slot) {
-          // Create new slot if it doesn't exist
-          slot = new Slot({
-            roomId,
-            startTime,
-            endTime,
-            date: startOfDay,
-            type: 'single',
-            status: 'available'
-          });
-          await slot.save();
-        }
-
-        // Check if slot is already booked
-        if (slot.status === 'booked') {
-          continue; // Skip this date if already booked
-        }
-
-        // Create booking for this date
-        const booking = new Booking({
-          userName,
-          slotId: slot._id,
-          roomId,
-          startTime,
-          endTime,
-          serviceName,
-          providerName,
-          phoneNumber,
-          date: startOfDay,
-          status: 'pending'
-        });
-
-        await booking.save();
-        
-        const populatedBooking = await Booking.findById(booking._id)
-          .populate('roomId', 'name')
-          .populate('slotId');
-        
-        bookings.push(populatedBooking);
-
-        // Emit real-time event to admin for each booking
-        io.to('admin-room').emit('new-booking-request', populatedBooking);
-      }
-
-      if (bookings.length === 0) {
-        return res.status(400).json({ error: 'جميع المواعيد في الفترة المحددة محجوزة بالفعل' });
-      }
-
-      return res.status(201).json({
-        message: `تم إنشاء ${bookings.length} طلب حجز`,
-        bookings,
-        count: bookings.length
+      // Create single recurring booking request
+      const booking = new Booking({
+        userName,
+        slotId, // Keep original slot ID for reference
+        roomId,
+        startTime,
+        endTime,
+        serviceName,
+        providerName,
+        phoneNumber: phoneNumber?.trim() || '',
+        isRecurring: true,
+        startDate: getStartOfDayUTC(date),
+        endDate: getStartOfDayUTC(endDate),
+        recurringDayOfWeek: dayOfWeek,
+        status: 'pending'
+        // date is not required for recurring bookings
       });
+
+      await booking.save();
+      const populatedBooking = await Booking.findById(booking._id)
+        .populate('roomId', 'name')
+        .populate('slotId');
+
+      // Emit real-time event to admin (single unified request)
+      const io = req.app.get('io');
+      io.to('admin-room').emit('new-booking-request', populatedBooking);
+
+      return res.status(201).json(populatedBooking);
     }
 
-    // Single booking (non-recurring)
+    // Single booking (non-recurring) - date is required
+    if (!date) {
+      return res.status(400).json({ error: 'التاريخ مطلوب للحجز العادي' });
+    }
+
     const booking = new Booking({
       userName,
       slotId,
@@ -221,9 +183,10 @@ router.post('/', async (req, res) => {
       endTime,
       serviceName,
       providerName,
-      phoneNumber,
+      phoneNumber: phoneNumber?.trim() || '',
       date: new Date(date),
-      status: 'pending'
+      status: 'pending',
+      isRecurring: false
     });
 
     await booking.save();
@@ -252,6 +215,144 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
 
     const bookingBefore = booking.toObject();
 
+    // Handle recurring bookings - create all individual bookings
+    if (booking.isRecurring) {
+      const recurringDates = generateWeeklyDates(
+        booking.startDate, 
+        booking.endDate, 
+        booking.recurringDayOfWeek
+      );
+
+      if (recurringDates.length === 0) {
+        return res.status(400).json({ error: 'لا توجد تواريخ متاحة في الفترة المحددة' });
+      }
+
+      const createdBookings = [];
+      const updatedSlots = [];
+
+      // Create bookings and update slots for each date
+      for (const recurringDate of recurringDates) {
+        const dateString = recurringDate.toISOString().split('T')[0];
+        const startOfDay = getStartOfDayUTC(dateString);
+        const startOfNextDay = getStartOfNextDayUTC(dateString);
+
+        // Find or create slot for this date
+        let slot = await Slot.findOne({
+          roomId: booking.roomId,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          date: { $gte: startOfDay, $lt: startOfNextDay }
+        });
+
+        const slotBefore = slot ? slot.toObject() : null;
+
+        if (!slot) {
+          // Create new slot if it doesn't exist
+          slot = new Slot({
+            roomId: booking.roomId,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+            date: startOfDay,
+            type: 'single',
+            status: 'available'
+          });
+        }
+
+        // Skip if slot is already booked
+        if (slot.status === 'booked') {
+          continue;
+        }
+
+        // Update slot status and details
+        slot.status = 'booked';
+        slot.bookedBy = booking.userName;
+        slot.serviceName = booking.serviceName;
+        slot.providerName = booking.providerName;
+        await slot.save();
+        updatedSlots.push({ slot, slotBefore });
+
+        // Create individual booking for this date
+        const individualBooking = new Booking({
+          userName: booking.userName,
+          slotId: slot._id,
+          roomId: booking.roomId,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          serviceName: booking.serviceName,
+          providerName: booking.providerName,
+          phoneNumber: booking.phoneNumber || '',
+          date: startOfDay,
+          status: 'approved',
+          isRecurring: false
+        });
+        await individualBooking.save();
+        createdBookings.push(individualBooking);
+      }
+
+      // Update the recurring booking status to approved
+      booking.status = 'approved';
+      booking.updatedAt = Date.now();
+      await booking.save();
+
+      const populatedBooking = await Booking.findById(booking._id)
+        .populate('roomId', 'name')
+        .populate('slotId');
+
+      // Emit real-time events
+      const io = req.app.get('io');
+      io.emit('booking-approved', populatedBooking);
+
+      if (req.adminId) {
+        const undoSteps = [
+          {
+            operation: 'restore',
+            collection: 'Booking',
+            documents: [bookingBefore]
+          },
+          {
+            operation: 'delete',
+            collection: 'Booking',
+            documents: createdBookings.map(b => ({ _id: b._id }))
+          }
+        ];
+
+        updatedSlots.forEach(({ slotBefore }) => {
+          if (slotBefore) {
+            undoSteps.push({
+              operation: 'restore',
+              collection: 'Slot',
+              documents: [slotBefore]
+            });
+          }
+        });
+
+        await logAdminAction({
+          adminId: req.adminId,
+          actionName: 'Approved Recurring Booking',
+          actionType: 'status-change',
+          targetCollection: 'Booking',
+          targetIds: [booking._id, ...createdBookings.map(b => b._id)],
+          details: `تمت الموافقة على تثبيت معاد ${booking.userName} من ${booking.startDate.toISOString().split('T')[0]} إلى ${booking.endDate.toISOString().split('T')[0]} (${createdBookings.length} موعد)`,
+          metadata: {
+            before: bookingBefore,
+            after: populatedBooking.toObject ? populatedBooking.toObject() : populatedBooking,
+            createdBookings: createdBookings.map(b => b.toObject()),
+            updatedSlots: updatedSlots.map(({ slot }) => slot.toObject())
+          },
+          undoPayload: {
+            steps: undoSteps
+          }
+        });
+      }
+
+      return res.json({
+        ...populatedBooking.toObject(),
+        createdBookings: createdBookings.length,
+        message: `تمت الموافقة على تثبيت المعاد وإنشاء ${createdBookings.length} حجز`
+      });
+    }
+
+    // Handle single booking (non-recurring)
     // Update booking status
     booking.status = 'approved';
     booking.updatedAt = Date.now();
