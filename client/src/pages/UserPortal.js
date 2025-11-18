@@ -261,10 +261,30 @@ function UserPortal() {
     // Setup socket listeners when component mounts or dependencies change
     socketService.onBookingApproved((booking) => {
       toast.success('تمت الموافقة على حجز!');
+      
+      // First, try to update the slot in current list if it exists
+      if (booking.slotId && booking.slotId._id) {
+        setSlots(prevSlots => {
+          const slotIndex = prevSlots.findIndex(s => s._id === booking.slotId._id);
+          if (slotIndex !== -1) {
+            // Update the slot status to booked immediately
+            const newSlots = [...prevSlots];
+            newSlots[slotIndex] = {
+              ...newSlots[slotIndex],
+              status: 'booked',
+              bookedBy: booking.userName,
+              serviceName: booking.serviceName,
+              providerName: booking.providerName
+            };
+            return newSlots;
+          }
+          return prevSlots;
+        });
+      }
+      
       // Reset pagination to page 1 and reload slots
       // Use setTimeout to ensure database updates are reflected
       setCurrentSlotsPage(1);
-      setSlots([]);
       setTimeout(() => {
         if (selectedRoom === 'all') {
           loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
@@ -273,7 +293,7 @@ function UserPortal() {
         } else if (selectedRoom) {
           loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
         }
-      }, 200);
+      }, 300);
     });
 
     socketService.onBookingRejected(() => {
@@ -294,47 +314,92 @@ function UserPortal() {
 
     // Listen for slot updates (for recurring bookings)
     socketService.onSlotUpdated((updatedSlot) => {
-      // Always reload if the updated slot matches current filters
+      // Always update the slot in the current list first (regardless of filters or status)
+      setSlots(prevSlots => {
+        const slotIndex = prevSlots.findIndex(s => s._id === updatedSlot._id);
+        if (slotIndex !== -1) {
+          // Slot exists in current list, update it immediately
+          const newSlots = [...prevSlots];
+          newSlots[slotIndex] = updatedSlot;
+          return newSlots;
+        }
+        
+        // Slot doesn't exist in current list, check if it should be added
+        const slotDate = new Date(updatedSlot.date).toISOString().split('T')[0];
+        const matchesDate = !selectedDate || slotDate === selectedDate;
+        const matchesTime = !selectedTimeSlot || (
+          updatedSlot.startTime === selectedTimeSlot.split('-')[0] &&
+          updatedSlot.endTime === selectedTimeSlot.split('-')[1]
+        );
+        const matchesRoom = !selectedRoom || 
+          selectedRoom === 'all' ||
+          (selectedRoom?.isGroup && selectedRoom.rooms?.some(r => r._id === updatedSlot.roomId?._id || r._id === updatedSlot.roomId)) ||
+          (selectedRoom?._id === updatedSlot.roomId?._id || selectedRoom?._id === updatedSlot.roomId);
+        
+        // If slot matches filters and we're on page 1, add it to the list
+        // Even if it's booked or showAvailableOnly is true (to show user that their booking was approved)
+        if (matchesDate && matchesTime && matchesRoom && currentSlotsPage === 1) {
+          // Add the updated slot to the list (even if booked)
+          return [updatedSlot, ...prevSlots];
+        }
+        return prevSlots;
+      });
+      
+      // Reload to ensure consistency with database (but keep the updated slot visible)
       const slotDate = new Date(updatedSlot.date).toISOString().split('T')[0];
       const matchesDate = !selectedDate || slotDate === selectedDate;
-      
-      // Check if slot matches time filter
       const matchesTime = !selectedTimeSlot || (
         updatedSlot.startTime === selectedTimeSlot.split('-')[0] &&
         updatedSlot.endTime === selectedTimeSlot.split('-')[1]
       );
-      
-      // Check if slot matches room filter
       const matchesRoom = !selectedRoom || 
         selectedRoom === 'all' ||
         (selectedRoom?.isGroup && selectedRoom.rooms?.some(r => r._id === updatedSlot.roomId?._id || r._id === updatedSlot.roomId)) ||
         (selectedRoom?._id === updatedSlot.roomId?._id || selectedRoom?._id === updatedSlot.roomId);
       
       if (matchesDate && matchesTime && matchesRoom) {
-        // Reset pagination and reload to show updated slots
+        // Reset pagination and reload to show updated slots from database
         setCurrentSlotsPage(1);
-        setSlots([]);
         // Use setTimeout to ensure database updates are reflected
+        // Keep the updated slot in memory so it doesn't get filtered out
         setTimeout(() => {
           if (selectedRoom === 'all') {
             loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
+            // After reload completes (via setTimeout), ensure the updated slot is still in the list
+            setTimeout(() => {
+              setSlots(prevSlots => {
+                const slotExists = prevSlots.some(s => s._id === updatedSlot._id);
+                if (!slotExists) {
+                  // Add it back if it was filtered out
+                  return [updatedSlot, ...prevSlots];
+                }
+                return prevSlots;
+              });
+            }, 500);
           } else if (selectedRoom?.isGroup) {
             loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
+            setTimeout(() => {
+              setSlots(prevSlots => {
+                const slotExists = prevSlots.some(s => s._id === updatedSlot._id);
+                if (!slotExists) {
+                  return [updatedSlot, ...prevSlots];
+                }
+                return prevSlots;
+              });
+            }, 500);
           } else if (selectedRoom) {
             loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
+            setTimeout(() => {
+              setSlots(prevSlots => {
+                const slotExists = prevSlots.some(s => s._id === updatedSlot._id);
+                if (!slotExists) {
+                  return [updatedSlot, ...prevSlots];
+                }
+                return prevSlots;
+              });
+            }, 500);
           }
-        }, 100);
-      } else {
-        // Update the slot in the current list if it exists (even if filters don't match)
-        setSlots(prevSlots => {
-          const slotIndex = prevSlots.findIndex(s => s._id === updatedSlot._id);
-          if (slotIndex !== -1) {
-            const newSlots = [...prevSlots];
-            newSlots[slotIndex] = updatedSlot;
-            return newSlots;
-          }
-          return prevSlots;
-        });
+        }, 300);
       }
     });
   }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
