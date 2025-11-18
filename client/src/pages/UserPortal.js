@@ -262,55 +262,10 @@ function UserPortal() {
     socketService.onBookingApproved((booking) => {
       toast.success('تمت الموافقة على حجز!');
       // Reset pagination to page 1 and reload slots
+      // Use setTimeout to ensure database updates are reflected
       setCurrentSlotsPage(1);
       setSlots([]);
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
-      } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
-      } else if (selectedRoom) {
-        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
-      }
-    });
-
-    socketService.onBookingRejected(() => {
-      // Reset pagination to page 1 and reload slots
-      setCurrentSlotsPage(1);
-      setSlots([]);
-      if (selectedRoom === 'all') {
-        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
-      } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
-      } else if (selectedRoom) {
-        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
-      }
-    });
-
-    // Listen for slot updates (for recurring bookings)
-    socketService.onSlotUpdated((updatedSlot) => {
-      // Update the slot in the current list if it exists
-      setSlots(prevSlots => {
-        const slotIndex = prevSlots.findIndex(s => s._id === updatedSlot._id);
-        if (slotIndex !== -1) {
-          const newSlots = [...prevSlots];
-          newSlots[slotIndex] = updatedSlot;
-          return newSlots;
-        }
-        // If slot not in current list, reload to ensure consistency
-        return prevSlots;
-      });
-      
-      // Also reload if the updated slot matches current filters
-      const slotDate = new Date(updatedSlot.date).toISOString().split('T')[0];
-      const matchesDate = !selectedDate || slotDate === selectedDate;
-      const matchesTime = !selectedTimeSlot || (
-        updatedSlot.startTime === selectedTimeSlot.split('-')[0] &&
-        updatedSlot.endTime === selectedTimeSlot.split('-')[1]
-      );
-      
-      if (matchesDate && matchesTime) {
-        // Reset pagination and reload to show updated slots
-        setCurrentSlotsPage(1);
+      setTimeout(() => {
         if (selectedRoom === 'all') {
           loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
         } else if (selectedRoom?.isGroup) {
@@ -318,6 +273,68 @@ function UserPortal() {
         } else if (selectedRoom) {
           loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
         }
+      }, 200);
+    });
+
+    socketService.onBookingRejected(() => {
+      // Reset pagination to page 1 and reload slots
+      // Use setTimeout to ensure database updates are reflected
+      setCurrentSlotsPage(1);
+      setSlots([]);
+      setTimeout(() => {
+        if (selectedRoom === 'all') {
+          loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
+        } else if (selectedRoom?.isGroup) {
+          loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
+        } else if (selectedRoom) {
+          loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
+        }
+      }, 200);
+    });
+
+    // Listen for slot updates (for recurring bookings)
+    socketService.onSlotUpdated((updatedSlot) => {
+      // Always reload if the updated slot matches current filters
+      const slotDate = new Date(updatedSlot.date).toISOString().split('T')[0];
+      const matchesDate = !selectedDate || slotDate === selectedDate;
+      
+      // Check if slot matches time filter
+      const matchesTime = !selectedTimeSlot || (
+        updatedSlot.startTime === selectedTimeSlot.split('-')[0] &&
+        updatedSlot.endTime === selectedTimeSlot.split('-')[1]
+      );
+      
+      // Check if slot matches room filter
+      const matchesRoom = !selectedRoom || 
+        selectedRoom === 'all' ||
+        (selectedRoom?.isGroup && selectedRoom.rooms?.some(r => r._id === updatedSlot.roomId?._id || r._id === updatedSlot.roomId)) ||
+        (selectedRoom?._id === updatedSlot.roomId?._id || selectedRoom?._id === updatedSlot.roomId);
+      
+      if (matchesDate && matchesTime && matchesRoom) {
+        // Reset pagination and reload to show updated slots
+        setCurrentSlotsPage(1);
+        setSlots([]);
+        // Use setTimeout to ensure database updates are reflected
+        setTimeout(() => {
+          if (selectedRoom === 'all') {
+            loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
+          } else if (selectedRoom?.isGroup) {
+            loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
+          } else if (selectedRoom) {
+            loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
+          }
+        }, 100);
+      } else {
+        // Update the slot in the current list if it exists (even if filters don't match)
+        setSlots(prevSlots => {
+          const slotIndex = prevSlots.findIndex(s => s._id === updatedSlot._id);
+          if (slotIndex !== -1) {
+            const newSlots = [...prevSlots];
+            newSlots[slotIndex] = updatedSlot;
+            return newSlots;
+          }
+          return prevSlots;
+        });
       }
     });
   }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
