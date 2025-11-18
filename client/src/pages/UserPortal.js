@@ -58,6 +58,8 @@ function UserPortal() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [endDate, setEndDate] = useState('');
   
   // Show available places only toggle (default enabled)
   const [showAvailableOnly, setShowAvailableOnly] = useState(true);
@@ -355,9 +357,25 @@ function UserPortal() {
       return;
     }
 
+    // Validate recurring booking
+    if (isRecurring) {
+      if (!endDate) {
+        toast.error('يرجى اختيار تاريخ الانتهاء لتثبيت الموعد');
+        return;
+      }
+      
+      const startDateObj = new Date(selectedSlot.date);
+      const endDateObj = new Date(endDate);
+      
+      if (endDateObj <= startDateObj) {
+        toast.error('تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
-      await bookingAPI.create({
+      const response = await bookingAPI.create({
         userName: userName.trim(),
         slotId: selectedSlot._id,
         roomId: selectedSlot.roomId._id || selectedSlot.roomId, // Use slot's roomId for "all" view
@@ -366,15 +384,23 @@ function UserPortal() {
         serviceName: serviceName.trim(),
         providerName: userName.trim(), // Provider Name = User's Full Name
         phoneNumber: phoneNumber.trim(),
-        date: selectedSlot.date
+        date: selectedSlot.date,
+        isRecurring: isRecurring,
+        endDate: isRecurring ? endDate : undefined
       });
 
-      toast.success('تم إرسال طلب الحجز! في انتظار موافقة المشرف...');
+      if (isRecurring && response.data?.count) {
+        toast.success(`تم إرسال ${response.data.count} طلب حجز لتثبيت المواعيد! في انتظار موافقة المشرف...`);
+      } else {
+        toast.success('تم إرسال طلب الحجز! في انتظار موافقة المشرف...');
+      }
       setShowBookingModal(false);
       setUserName('');
       setServiceName('');
       setPhoneNumber('');
       setSelectedSlot(null);
+      setIsRecurring(false);
+      setEndDate('');
       
       // Reload slots based on current selection
       if (selectedRoom === 'all') {
@@ -808,7 +834,11 @@ function UserPortal() {
           <div className="modal booking-modal">
             <div className="modal-header">
               <h2>طلب حجز</h2>
-              <button onClick={() => setShowBookingModal(false)}>
+              <button onClick={() => {
+                setShowBookingModal(false);
+                setIsRecurring(false);
+                setEndDate('');
+              }}>
                 <XCircle size={24} />
               </button>
             </div>
@@ -862,6 +892,48 @@ function UserPortal() {
 
               <div className="form-group">
                 <label>
+                  📅 تثبيت معاد
+                </label>
+                <div className="toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={isRecurring}
+                      onChange={(e) => {
+                        setIsRecurring(e.target.checked);
+                        if (!e.target.checked) {
+                          setEndDate('');
+                        }
+                      }}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                  <span className="toggle-label">
+                    {isRecurring ? 'مفعّل - سيتم تثبيت الموعد كل أسبوع' : 'إيقاف - حجز لمرة واحدة'}
+                  </span>
+                </div>
+              </div>
+
+              {isRecurring && (
+                <div className="form-group">
+                  <label>
+                    📅 تاريخ الانتهاء
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={selectedSlot ? new Date(selectedSlot.date).toISOString().split('T')[0] : getTodayDate()}
+                    required={isRecurring}
+                  />
+                  <small style={{ color: '#6c757d', fontSize: '0.85rem', marginTop: '0.25rem', display: 'block' }}>
+                    سيتم تثبيت نفس المعاد كل {new Date(selectedSlot?.date).toLocaleDateString('ar-EG', { weekday: 'long' })} من {new Date(selectedSlot?.date).toLocaleDateString('ar-EG')} حتى {endDate ? new Date(endDate).toLocaleDateString('ar-EG') : '...'}
+                  </small>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>
                   📱 رقم الهاتف
                 </label>
                 <input
@@ -889,7 +961,11 @@ function UserPortal() {
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setShowBookingModal(false)}
+                  onClick={() => {
+                    setShowBookingModal(false);
+                    setIsRecurring(false);
+                    setEndDate('');
+                  }}
                   disabled={submitting}
                 >
                   إلغاء

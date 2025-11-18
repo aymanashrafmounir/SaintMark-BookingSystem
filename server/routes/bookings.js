@@ -63,10 +63,47 @@ router.get('/pending', authMiddleware, async (req, res) => {
   }
 });
 
+// Helper function to generate all dates with the same weekday between start and end date
+const generateWeeklyDates = (startDate, endDate) => {
+  const dates = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  // Get the day of week (0 = Sunday, 1 = Monday, etc.)
+  const targetDayOfWeek = start.getDay();
+  
+  // Set to the first occurrence of the target day of week
+  let currentDate = new Date(start);
+  
+  // Generate all dates with the same day of week
+  while (currentDate <= end) {
+    dates.push(new Date(currentDate));
+    // Add 7 days to get the same day next week
+    currentDate.setDate(currentDate.getDate() + 7);
+  }
+  
+  return dates;
+};
+
+// Helper function to get start of day in UTC
+const getStartOfDayUTC = (date) => {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+};
+
+// Helper function to get start of next day in UTC (exclusive boundary)
+const getStartOfNextDayUTC = (date) => {
+  const d = new Date(date);
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+};
+
 // Create booking request (public - users)
 router.post('/', async (req, res) => {
   try {
-    const { userName, slotId, roomId, startTime, endTime, serviceName, providerName, phoneNumber, date } = req.body;
+    const { userName, slotId, roomId, startTime, endTime, serviceName, providerName, phoneNumber, date, isRecurring, endDate } = req.body;
 
     if (!userName || !slotId || !roomId || !startTime || !endTime || !serviceName || !providerName || !phoneNumber || !date) {
       return res.status(400).json({ error: 'All fields are required' });
@@ -78,15 +115,104 @@ router.post('/', async (req, res) => {
     }
 
     // Check if slot exists and is available
-    const slot = await Slot.findById(slotId);
-    if (!slot) {
+    const originalSlot = await Slot.findById(slotId);
+    if (!originalSlot) {
       return res.status(404).json({ error: 'Slot not found' });
     }
 
-    if (slot.status === 'booked') {
+    if (originalSlot.status === 'booked') {
       return res.status(400).json({ error: 'This slot is already booked' });
     }
 
+    // Handle recurring bookings
+    if (isRecurring && endDate) {
+      const startDateObj = new Date(date);
+      const endDateObj = new Date(endDate);
+      
+      if (endDateObj <= startDateObj) {
+        return res.status(400).json({ error: 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البداية' });
+      }
+
+      // Generate all dates with the same weekday
+      const recurringDates = generateWeeklyDates(startDateObj, endDateObj);
+      
+      if (recurringDates.length === 0) {
+        return res.status(400).json({ error: 'لا توجد تواريخ متاحة في الفترة المحددة' });
+      }
+
+      const bookings = [];
+      const io = req.app.get('io');
+
+      // Process each date
+      for (const recurringDate of recurringDates) {
+        const dateString = recurringDate.toISOString().split('T')[0];
+        const startOfDay = getStartOfDayUTC(dateString);
+        const startOfNextDay = getStartOfNextDayUTC(dateString);
+
+        // Find or create slot for this date
+        let slot = await Slot.findOne({
+          roomId,
+          startTime,
+          endTime,
+          date: { $gte: startOfDay, $lt: startOfNextDay }
+        });
+
+        if (!slot) {
+          // Create new slot if it doesn't exist
+          slot = new Slot({
+            roomId,
+            startTime,
+            endTime,
+            date: startOfDay,
+            type: 'single',
+            status: 'available'
+          });
+          await slot.save();
+        }
+
+        // Check if slot is already booked
+        if (slot.status === 'booked') {
+          continue; // Skip this date if already booked
+        }
+
+        // Create booking for this date
+        const booking = new Booking({
+          userName,
+          slotId: slot._id,
+          roomId,
+          startTime,
+          endTime,
+          serviceName,
+          providerName,
+          phoneNumber,
+          date: startOfDay,
+          status: 'pending'
+        });
+
+        await booking.save();
+        
+        const populatedBooking = await Booking.findById(booking._id)
+          .populate('roomId', 'name')
+          .populate('slotId');
+        
+        bookings.push(populatedBooking);
+
+        // Emit real-time event to admin for each booking
+        io.to('admin-room').emit('new-booking-request', populatedBooking);
+      }
+
+      if (bookings.length === 0) {
+        return res.status(400).json({ error: 'جميع المواعيد في الفترة المحددة محجوزة بالفعل' });
+      }
+
+      return res.status(201).json({
+        message: `تم إنشاء ${bookings.length} طلب حجز`,
+        bookings,
+        count: bookings.length
+      });
+    }
+
+    // Single booking (non-recurring)
     const booking = new Booking({
       userName,
       slotId,
