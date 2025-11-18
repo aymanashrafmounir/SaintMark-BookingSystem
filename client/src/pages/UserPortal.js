@@ -370,7 +370,7 @@ function UserPortal() {
 
     setSubmitting(true);
     try {
-      const response = await bookingAPI.create({
+      await bookingAPI.create({
         userName: userName.trim(),
         slotId: selectedSlot._id,
         roomId: selectedSlot.roomId._id || selectedSlot.roomId, // Use slot's roomId for "all" view
