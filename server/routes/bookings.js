@@ -148,15 +148,16 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ error: 'لا توجد تواريخ متاحة في الفترة المحددة' });
       }
 
+      // Load all candidate slots for this room & time once to avoid date/timezone issues
+      const candidateSlots = await Slot.find({
+        roomId,
+        startTime,
+        endTime
+      });
+
       // Before creating the recurring booking request, verify that there is an available slot for EVERY generated date
       for (const recurringDate of recurringDates) {
         const dateString = recurringDate.toISOString().split('T')[0];
-        const startOfDay = getStartOfDayUTC(dateString);
-        const startOfNextDay = getStartOfNextDayUTC(dateString);
-
-        if (!startOfDay || !startOfNextDay) {
-          return res.status(400).json({ error: 'تاريخ غير صالح ضمن فترة التكرار' });
-        }
 
         let slotForDay = null;
 
@@ -170,12 +171,13 @@ router.post('/', async (req, res) => {
         if (originalSlotDateStr === dateString) {
           slotForDay = originalSlot;
         } else {
-          slotForDay = await Slot.findOne({
-            roomId,
-            startTime,
-            endTime,
-            date: { $gte: startOfDay, $lt: startOfNextDay }
-          });
+          // Find a matching slot by comparing calendar date (YYYY-MM-DD) in JS
+          slotForDay = candidateSlots.find(s => {
+            if (!s.date) return false;
+            const sDate = s.date instanceof Date ? s.date : new Date(s.date);
+            const sDateStr = sDate.toISOString().split('T')[0];
+            return sDateStr === dateString;
+          }) || null;
         }
 
         if (!slotForDay) {
