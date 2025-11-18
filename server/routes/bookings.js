@@ -63,6 +63,54 @@ router.get('/pending', authMiddleware, async (req, res) => {
   }
 });
 
+// Helper function to parse date string to UTC Date (handles YYYY-MM-DD format)
+const parseDateToUTC = (dateString) => {
+  // Return null if dateString is falsy or empty string
+  if (!dateString || (typeof dateString === 'string' && dateString.trim().length === 0)) {
+    return null;
+  }
+  
+  // If it's already a Date object, return it
+  if (dateString instanceof Date) {
+    return dateString;
+  }
+
+  // Ensure dateString is a string
+  if (typeof dateString !== 'string') {
+    return null;
+  }
+
+  // Parse YYYY-MM-DD format as UTC date
+  // Split the date string to avoid timezone interpretation issues
+  const dateOnly = dateString.split('T')[0].trim();
+  const parts = dateOnly.split('-');
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+    const day = parseInt(parts[2], 10);
+    
+    // Validate that we got valid numbers
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return null;
+    }
+
+    // Validate reasonable date ranges
+    if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
+      return null;
+    }
+
+    return new Date(Date.UTC(year, month, day));
+  }
+
+  // Fallback to standard date parsing
+  const parsedDate = new Date(dateString);
+  // Check if the parsed date is valid
+  if (isNaN(parsedDate.getTime())) {
+    return null;
+  }
+  return parsedDate;
+};
+
 // Helper function to generate all dates with the same weekday between start and end date
 const generateWeeklyDates = (startDate, endDate, dayOfWeek = null) => {
   const dates = [];
@@ -151,8 +199,8 @@ router.post('/', async (req, res) => {
         providerName,
         phoneNumber: phoneNumber?.trim() || '',
         isRecurring: true,
-        startDate: getStartOfDayUTC(date),
-        endDate: getStartOfDayUTC(endDate),
+        startDate: parseDateToUTC(date),
+        endDate: parseDateToUTC(endDate),
         recurringDayOfWeek: dayOfWeek,
         status: 'pending'
         // date is not required for recurring bookings
@@ -233,8 +281,16 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
       // Update existing slots for each date (DO NOT CREATE NEW SLOTS)
       for (const recurringDate of recurringDates) {
         const dateString = recurringDate.toISOString().split('T')[0];
-        const startOfDay = getStartOfDayUTC(dateString);
-        const startOfNextDay = getStartOfNextDayUTC(dateString);
+        
+        // Use the same date parsing logic as slot creation to ensure consistency
+        const startOfDay = parseDateToUTC(dateString);
+        const startOfNextDay = new Date(startOfDay);
+        startOfNextDay.setUTCDate(startOfNextDay.getUTCDate() + 1);
+        
+        if (!startOfDay) {
+          console.log(`Invalid date format for ${dateString}, skipping...`);
+          continue;
+        }
 
         // Find existing slot only (DO NOT CREATE)
         const slot = await Slot.findOne({
