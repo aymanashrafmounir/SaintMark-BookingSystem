@@ -301,6 +301,28 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
       // Emit real-time events
       const io = req.app.get('io');
       io.emit('booking-approved', populatedBooking);
+      
+      // Emit slot-updated events for all updated slots to refresh user views
+      // Populate and emit all slots in parallel
+      const slotPromises = updatedSlots.map(({ slot }) => 
+        Slot.findById(slot._id)
+          .populate('roomId', 'name')
+          .then(populatedSlot => {
+            if (populatedSlot) {
+              io.emit('slot-updated', populatedSlot);
+            }
+            return populatedSlot;
+          })
+          .catch(err => {
+            console.error('Error populating slot for emit:', err);
+            return null;
+          })
+      );
+      
+      // Wait for all slot emits to complete (non-blocking)
+      Promise.all(slotPromises).catch(err => 
+        console.error('Error emitting slot-updated events:', err)
+      );
 
       if (req.adminId) {
         const undoSteps = [
@@ -367,6 +389,13 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
       slot.serviceName = booking.serviceName;
       slot.providerName = booking.providerName;
       await slot.save();
+      
+      // Emit slot-updated event to refresh user views
+      const populatedSlot = await Slot.findById(slot._id).populate('roomId', 'name');
+      if (populatedSlot) {
+        const io = req.app.get('io');
+        io.emit('slot-updated', populatedSlot);
+      }
     }
 
     const populatedBooking = await Booking.findById(booking._id)

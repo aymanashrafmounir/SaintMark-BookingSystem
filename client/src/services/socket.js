@@ -63,6 +63,12 @@ class SocketService {
     }
   }
 
+  onSlotUpdated(callback) {
+    if (this.socket) {
+      this.socket.on('slot-updated', callback);
+    }
+  }
+
   removeListener(event) {
     if (this.socket) {
       this.socket.off(event);

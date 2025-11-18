@@ -261,22 +261,63 @@ function UserPortal() {
     // Setup socket listeners when component mounts or dependencies change
     socketService.onBookingApproved((booking) => {
       toast.success('تمت الموافقة على حجز!');
+      // Reset pagination to page 1 and reload slots
+      setCurrentSlotsPage(1);
+      setSlots([]);
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
+        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
       } else if (selectedRoom) {
-        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
       }
     });
 
     socketService.onBookingRejected(() => {
+      // Reset pagination to page 1 and reload slots
+      setCurrentSlotsPage(1);
+      setSlots([]);
       if (selectedRoom === 'all') {
-        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot);
+        loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
       } else if (selectedRoom?.isGroup) {
-        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot);
+        loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
       } else if (selectedRoom) {
-        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot);
+        loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
+      }
+    });
+
+    // Listen for slot updates (for recurring bookings)
+    socketService.onSlotUpdated((updatedSlot) => {
+      // Update the slot in the current list if it exists
+      setSlots(prevSlots => {
+        const slotIndex = prevSlots.findIndex(s => s._id === updatedSlot._id);
+        if (slotIndex !== -1) {
+          const newSlots = [...prevSlots];
+          newSlots[slotIndex] = updatedSlot;
+          return newSlots;
+        }
+        // If slot not in current list, reload to ensure consistency
+        return prevSlots;
+      });
+      
+      // Also reload if the updated slot matches current filters
+      const slotDate = new Date(updatedSlot.date).toISOString().split('T')[0];
+      const matchesDate = !selectedDate || slotDate === selectedDate;
+      const matchesTime = !selectedTimeSlot || (
+        updatedSlot.startTime === selectedTimeSlot.split('-')[0] &&
+        updatedSlot.endTime === selectedTimeSlot.split('-')[1]
+      );
+      
+      if (matchesDate && matchesTime) {
+        // Reset pagination and reload to show updated slots
+        setCurrentSlotsPage(1);
+        if (selectedRoom === 'all') {
+          loadAllSlotsForDateAndTime(selectedDate, selectedTimeSlot, false, 1);
+        } else if (selectedRoom?.isGroup) {
+          loadSlotsForGroup(selectedRoom, selectedDate, selectedTimeSlot, false, 1);
+        } else if (selectedRoom) {
+          loadSlotsForDateAndTime(selectedRoom._id, selectedDate, selectedTimeSlot, false, 1);
+        }
       }
     });
   }, [loadAllSlotsForDateAndTime, loadSlotsForDateAndTime, loadSlotsForGroup, selectedRoom, selectedDate, selectedTimeSlot]);
