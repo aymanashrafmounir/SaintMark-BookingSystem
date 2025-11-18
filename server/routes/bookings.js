@@ -230,81 +230,35 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
       const createdBookings = [];
       const updatedSlots = [];
 
-      // Create bookings and update slots for each date
+      // Update existing slots for each date (DO NOT CREATE NEW SLOTS)
       for (const recurringDate of recurringDates) {
         const dateString = recurringDate.toISOString().split('T')[0];
         const startOfDay = getStartOfDayUTC(dateString);
         const startOfNextDay = getStartOfNextDayUTC(dateString);
 
-        // Find existing slot for this date using multiple query strategies to avoid duplicates
-        // First try: exact date match
-        let slot = await Slot.findOne({
+        // Find existing slot only (DO NOT CREATE)
+        const slot = await Slot.findOne({
           roomId: booking.roomId,
           startTime: booking.startTime,
           endTime: booking.endTime,
-          date: startOfDay
+          date: { $gte: startOfDay, $lt: startOfNextDay }
         });
 
-        // Second try: date range query (in case date is stored slightly differently)
+        // Skip if slot doesn't exist - we only update existing slots
         if (!slot) {
-          slot = await Slot.findOne({
-            roomId: booking.roomId,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            date: { $gte: startOfDay, $lt: startOfNextDay }
-          });
-        }
-
-        const slotBefore = slot ? slot.toObject() : null;
-
-        // Only create new slot if it truly doesn't exist (using atomic upsert to prevent duplicates)
-        if (!slot) {
-          // Use findOneAndUpdate with upsert to atomically find or create
-          // This prevents race conditions that could create duplicate slots
-          slot = await Slot.findOneAndUpdate(
-            {
-              roomId: booking.roomId,
-              startTime: booking.startTime,
-              endTime: booking.endTime,
-              date: startOfDay
-            },
-            {
-              $setOnInsert: {
-                roomId: booking.roomId,
-                startTime: booking.startTime,
-                endTime: booking.endTime,
-                date: startOfDay,
-                type: 'single',
-                status: 'available'
-              }
-            },
-            {
-              upsert: true,
-              new: true,
-              setDefaultsOnInsert: true
-            }
-          );
-        }
-
-        // Skip if slot is already booked by the same user (avoid duplicate bookings)
-        if (slot.status === 'booked') {
-          // Check if it's already booked by this booking
-          const existingBooking = await Booking.findOne({
-            slotId: slot._id,
-            userName: booking.userName,
-            status: 'approved'
-          });
-          
-          if (existingBooking) {
-            // Already booked by this user, skip
-            continue;
-          }
-          
-          // Booked by someone else, skip
+          console.log(`Slot not found for date ${dateString}, skipping...`);
           continue;
         }
 
-        // Update slot status and details (don't create new, update existing)
+        const slotBefore = slot.toObject();
+
+        // Skip if slot is already booked
+        if (slot.status === 'booked') {
+          console.log(`Slot already booked for date ${dateString}, skipping...`);
+          continue;
+        }
+
+        // Update existing slot status and details only
         slot.status = 'booked';
         slot.bookedBy = booking.userName;
         slot.serviceName = booking.serviceName;
