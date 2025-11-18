@@ -273,6 +273,7 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
       console.log(`  Start date: ${booking.startDate.toISOString()}`);
       console.log(`  End date: ${booking.endDate.toISOString()}`);
       console.log(`  Target day of week: ${booking.recurringDayOfWeek} (0=Sunday, 6=Saturday)`);
+      console.log(`  Start date day of week: ${booking.startDate.getDay()} (local) / ${booking.startDate.getUTCDay()} (UTC)`);
       
       const recurringDates = generateWeeklyDates(
         booking.startDate, 
