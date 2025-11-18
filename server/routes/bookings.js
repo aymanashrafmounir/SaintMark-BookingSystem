@@ -117,24 +117,28 @@ const generateWeeklyDates = (startDate, endDate, dayOfWeek = null) => {
   const start = new Date(startDate);
   const end = new Date(endDate);
   
+  // Ensure we're working with UTC dates to avoid timezone shifts
+  const startUTC = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+  const endUTC = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+  
   // Get the day of week (0 = Sunday, 1 = Monday, etc.)
-  const targetDayOfWeek = dayOfWeek !== null ? dayOfWeek : start.getDay();
+  const targetDayOfWeek = dayOfWeek !== null ? dayOfWeek : startUTC.getUTCDay();
   
   // Find the first occurrence of the target day of week
-  let currentDate = new Date(start);
-  const daysUntilTarget = (targetDayOfWeek - currentDate.getDay() + 7) % 7;
+  let currentDate = new Date(startUTC);
+  const daysUntilTarget = (targetDayOfWeek - currentDate.getUTCDay() + 7) % 7;
   
   if (daysUntilTarget > 0) {
-    currentDate.setDate(currentDate.getDate() + daysUntilTarget);
+    currentDate.setUTCDate(currentDate.getUTCDate() + daysUntilTarget);
   }
   
   // Generate all dates with the same day of week
-  while (currentDate <= end) {
+  while (currentDate <= endUTC) {
     dates.push(new Date(currentDate));
     // Add 7 days to get the same day next week
-    currentDate.setDate(currentDate.getDate() + 7);
+    currentDate.setUTCDate(currentDate.getUTCDate() + 7);
   }
-  
+
   return dates;
 };
 
@@ -265,11 +269,21 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
 
     // Handle recurring bookings - create all individual bookings
     if (booking.isRecurring) {
+      console.log(`Recurring booking details:`);
+      console.log(`  Start date: ${booking.startDate.toISOString()}`);
+      console.log(`  End date: ${booking.endDate.toISOString()}`);
+      console.log(`  Target day of week: ${booking.recurringDayOfWeek} (0=Sunday, 6=Saturday)`);
+      
       const recurringDates = generateWeeklyDates(
         booking.startDate, 
         booking.endDate, 
         booking.recurringDayOfWeek
       );
+
+      console.log(`Generated ${recurringDates.length} recurring dates:`);
+      recurringDates.forEach((date, index) => {
+        console.log(`  ${index + 1}. ${date.toISOString().split('T')[0]} (Day ${date.getDay()})`);
+      });
 
       if (recurringDates.length === 0) {
         return res.status(400).json({ error: 'لا توجد تواريخ متاحة في الفترة المحددة' });
@@ -292,6 +306,25 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
           continue;
         }
 
+        console.log(`Searching for slot - Date: ${dateString}, Room: ${booking.roomId}, Time: ${booking.startTime}-${booking.endTime}`);
+        console.log(`Search range: ${startOfDay.toISOString()} to ${startOfNextDay.toISOString()}`);
+
+        // Debug: Check what slots exist for this room around this date
+        const existingSlots = await Slot.find({
+          roomId: booking.roomId,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          date: { 
+            $gte: new Date(startOfDay.getTime() - 7 * 24 * 60 * 60 * 1000), // 7 days before
+            $lt: new Date(startOfDay.getTime() + 7 * 24 * 60 * 60 * 1000)  // 7 days after
+          }
+        }).select('date startTime endTime status').lean();
+        
+        console.log(`Existing slots for room ${booking.roomId} at ${booking.startTime}-${booking.endTime} (±7 days):`);
+        existingSlots.forEach(slot => {
+          console.log(`  - ${slot.date.toISOString().split('T')[0]} (${slot.status})`);
+        });
+
         // Find existing slot only (DO NOT CREATE)
         const slot = await Slot.findOne({
           roomId: booking.roomId,
@@ -299,6 +332,8 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
           endTime: booking.endTime,
           date: { $gte: startOfDay, $lt: startOfNextDay }
         });
+
+        console.log(`Slot search result:`, slot ? `Found ${slot._id}` : 'Not found');
 
         // Skip if slot doesn't exist - we only update existing slots
         if (!slot) {
