@@ -154,12 +154,29 @@ router.post('/', async (req, res) => {
         const startOfDay = getStartOfDayUTC(dateString);
         const startOfNextDay = getStartOfNextDayUTC(dateString);
 
-        const slotForDay = await Slot.findOne({
-          roomId,
-          startTime,
-          endTime,
-          date: { $gte: startOfDay, $lt: startOfNextDay }
-        });
+        if (!startOfDay || !startOfNextDay) {
+          return res.status(400).json({ error: 'تاريخ غير صالح ضمن فترة التكرار' });
+        }
+
+        let slotForDay = null;
+
+        // If this recurring date is the same calendar day as the originally selected slot,
+        // use the originalSlot directly to avoid any timezone/date parsing issues
+        const originalSlotDate = originalSlot.date instanceof Date
+          ? originalSlot.date
+          : new Date(originalSlot.date);
+        const originalSlotDateStr = originalSlotDate.toISOString().split('T')[0];
+
+        if (originalSlotDateStr === dateString) {
+          slotForDay = originalSlot;
+        } else {
+          slotForDay = await Slot.findOne({
+            roomId,
+            startTime,
+            endTime,
+            date: { $gte: startOfDay, $lt: startOfNextDay }
+          });
+        }
 
         if (!slotForDay) {
           return res.status(400).json({
