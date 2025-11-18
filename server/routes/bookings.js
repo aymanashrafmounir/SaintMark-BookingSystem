@@ -246,11 +246,12 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
 
         // Skip if slot doesn't exist - we only update existing slots
         if (!slot) {
-          console.log(`Slot not found for date ${dateString}, skipping...`);
+          console.log(`Slot not found for date ${dateString} (room: ${booking.roomId}, time: ${booking.startTime}-${booking.endTime}), skipping...`);
           continue;
         }
 
         const slotBefore = slot.toObject();
+        console.log(`Found slot ${slot._id} for date ${dateString}, current status: ${slot.status}`);
 
         // Skip if slot is already booked
         if (slot.status === 'booked') {
@@ -263,8 +264,23 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
         slot.bookedBy = booking.userName;
         slot.serviceName = booking.serviceName;
         slot.providerName = booking.providerName;
-        await slot.save();
-        updatedSlots.push({ slot, slotBefore });
+        
+        try {
+          await slot.save();
+          console.log(`Updated slot ${slot._id} for date ${dateString} - Status: ${slot.status}, Service: ${slot.serviceName}, Provider: ${slot.providerName}`);
+        } catch (error) {
+          console.error(`Error saving slot ${slot._id}:`, error);
+          continue;
+        }
+        
+        // Verify the slot was saved correctly by reloading from database
+        const savedSlot = await Slot.findById(slot._id);
+        if (savedSlot && savedSlot.status === 'booked') {
+          console.log(`Verified slot ${savedSlot._id} is booked - Service: ${savedSlot.serviceName}, Provider: ${savedSlot.providerName}`);
+          updatedSlots.push({ slot: savedSlot, slotBefore });
+        } else {
+          console.error(`Failed to verify slot ${slot._id} update! Expected booked, got: ${savedSlot?.status || 'null'}`);
+        }
 
         // Create individual booking for this date
         const individualBooking = new Booking({
@@ -299,20 +315,33 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
       
       // Emit slot-updated events for all updated slots to refresh user views
       // Populate and emit all slots in parallel
-      const slotPromises = updatedSlots.map(({ slot }) => 
-        Slot.findById(slot._id)
+      const slotPromises = updatedSlots.map(({ slot }) => {
+        if (!slot || !slot._id) {
+          console.error('Invalid slot in updatedSlots:', slot);
+          return Promise.resolve(null);
+        }
+        
+        return Slot.findById(slot._id)
           .populate('roomId', 'name')
           .then(populatedSlot => {
             if (populatedSlot) {
-              io.emit('slot-updated', populatedSlot);
+              // Verify slot is actually booked before emitting
+              if (populatedSlot.status === 'booked') {
+                io.emit('slot-updated', populatedSlot);
+                console.log(`Emitted slot-updated for slot ${populatedSlot._id} on ${populatedSlot.date}`);
+              } else {
+                console.error(`Slot ${populatedSlot._id} is not booked after update! Status: ${populatedSlot.status}`);
+              }
+            } else {
+              console.error(`Slot ${slot._id} not found after update`);
             }
             return populatedSlot;
           })
           .catch(err => {
             console.error('Error populating slot for emit:', err);
             return null;
-          })
-      );
+          });
+      });
       
       // Wait for all slot emits to complete (non-blocking)
       Promise.all(slotPromises).catch(err => 
