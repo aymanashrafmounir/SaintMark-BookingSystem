@@ -435,13 +435,16 @@ router.put('/:id/approve', authMiddleware, async (req, res) => {
             operation: 'restore',
             collection: 'Booking',
             documents: [bookingBefore]
-          },
-          {
-            operation: 'delete',
-            collection: 'Booking',
-            documents: createdBookings.map(b => ({ _id: b._id }))
           }
         ];
+
+        if (createdBookings.length > 0) {
+          undoSteps.push({
+            operation: 'delete',
+            collection: 'Booking',
+            ids: createdBookings.map(b => b._id)
+          });
+        }
 
         updatedSlots.forEach(({ slotBefore }) => {
           if (slotBefore) {
